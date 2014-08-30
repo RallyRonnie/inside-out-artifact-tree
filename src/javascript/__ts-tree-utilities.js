@@ -4,7 +4,7 @@
  * 
  */
  
-Ext.define('Rally.ts.util.TreeBuilding', {
+Ext.define('Rally.technicalservices.util.TreeBuilding', {
     singleton: true,
     logger: new Rally.technicalservices.Logger(),
     /*

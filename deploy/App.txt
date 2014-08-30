@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri Aug 29 2014 10:42:20 GMT-0700 (PDT) -->
+    <!--  Build Date: Sat Aug 30 2014 09:27:02 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Aug 29 2014 10:42:20 GMT-0700 (PDT)";
-        var CHECKSUM = 3431899934;
+        var APP_BUILD_DATE = "Sat Aug 30 2014 09:27:02 GMT-0700 (PDT)";
+        var CHECKSUM = 7004747286;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -15,6 +15,108 @@
     <script type="text/javascript">
         Rally.onReady(function() {
              
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+/*
+ * A series of utilities to help construct trees
+ * with data gotten bottom or middle-up
+ * 
+ */
+ 
+Ext.define('Rally.technicalservices.util.TreeBuilding', {
+    singleton: true,
+    logger: new Rally.technicalservices.Logger(),
+    /*
+     * Given a hash of models (key = object id) that all know what
+     * their parent is (based on the "parent" field -- note lowercase)
+     * Return an array of models that are at the root level and
+     * have a "children" field (note lowercase)
+     * with appropriate items in an array 
+     */
+    constructRootItems:function(item_hash) {
+        var root_array = [];
+        Ext.Object.each(item_hash, function(oid,item){
+            if ( !item.get('children') ) { item.set('children',[]); }
+            var direct_parent = item.get('parent');
+            if (!direct_parent && !Ext.Array.contains(root_array,item)) {
+                root_array.push(item);
+            } else {
+                
+                var parent_oid =  direct_parent.ObjectID || direct_parent.get('ObjectID');
+                if (!item_hash[parent_oid]) {
+                    this.logger.log("Saved parent missing: ", parent_oid);
+                    if ( !Ext.Array.contains(root_array,item) ) {
+                        root_array.push(item);
+                    }
+                } else {
+                    var parent = item_hash[parent_oid];
+                    if ( !parent.get('children') ) { parent.set('children',[]); }
+                    var kids = parent.get('children');
+                    kids.push(item);
+                    parent.set('children',kids);
+                }
+            }
+        },this);
+        return root_array;
+    },
+    /**
+     * Given an array of models, turn them into hashes
+     */
+    convertModelsToHashes: function(model_array) {
+        var hash_array = [];
+        Ext.Array.each(model_array,function(model){
+            if (this.isModel(model)) {
+                var model_as_hash = model.getData();
+                model_as_hash.expanded = false;
+                model_as_hash.leaf = false;
+                
+                // children & parent are fields that are not a 
+                // part of the model def'n so getData doesn't provide them
+                if ( model.get('children') ) {
+                    model_as_hash.children = this.convertModelsToHashes(model.get('children'));
+                }
+                if ( model.get('parent') ) {
+                    if ( this.isModel(model.get('parent') ) ) {
+                        model_as_hash.parent = model.get('parent').getData();
+                    } else {
+                        model_as_hash.parent = model.get('parent');
+                    }
+                }
+
+                if (!model_as_hash.children || model_as_hash.children.length === 0 ) {
+                    model_as_hash.leaf = true;
+                }
+                
+                hash_array.push(model_as_hash);
+            } else {
+                hash_array.push(model);
+            }
+        },this);
+        return hash_array;
+    },
+    isModel: function(model){
+        return model && ( model instanceof Ext.data.Model );
+    }
+});
 /**
  * A link that pops up a version dialog box
  */
@@ -118,65 +220,33 @@ Ext.define('Rally.technicalservices.InfoLink',{
 });
 
 /*
- */
-Ext.define('Rally.technicalservices.Logger',{
-    constructor: function(config){
-        Ext.apply(this,config);
-    },
-    log: function(args){
-        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
-        //var output_args = arguments;
-        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
-        //output_args = Ext.Array.push(output_args,arguments);
-        
-        var output_args = [];
-        output_args = Ext.Array.push(output_args,[timestamp]);
-        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
-
-        window.console && console.log.apply(console,output_args);
-    }
-
-});
-
-Ext.define('TSTreeModel',{
-    extend: 'Ext.data.Model',
-    fields: [
-        { name: 'FormattedID', type: 'String' },
-        { name: 'Name', type:'String' },
-        { name: '_ref', type:'String' },
-        { name: '_type', type:'String' }
-    ]
-});
-/*
- * A series of utilities to help construct trees
- * with data gotten bottom or middle-up
+ * Most of our trees are generated top-down, which
+ * is most performant; however, sometimes we need to
+ * point to a set of items in the middle of a tree and
+ * (to apply scope or query) and then construct the
+ * tree above and below the found items
+ * 
+ * A good example of this is wanting to see all
+ * the PIs that have a story in a particular iteration
+ * or in a particular team.  The PIs won't be assigned
+ * to an iteration and might not be in the chosen project
+ * scope, so first we have to find the iteration-tied stories
+ * and then go up and down the tree to make context appear.
+ * 
  * 
  */
  
-Ext.define('Rally.ts.util.TreeBuilding', {
-    singleton: true,
-    /*
-     * Given a hash of models (key = object id) that all know what
-     * their parent is (based on the "parent" field -- note lowercase)
-     * Return an array of models that have a "children" field (note lowercase)
-     * with appropriate items in an array
-     */
-    makeChildrenFromParents:function(item_hash) {
-        var array_with_children = [];
-        return item_array;
-    }
-});
-Ext.define('CustomApp', {
-    extend: 'Rally.app.App',
-    componentCls: 'app',
+ Ext.define('Rally.technicalservices.InsideOutTree', {
+    extend: 'Ext.container.Container',
+    alias: 'widget.insideouttree',
+    requires: [ 'Rally.technicalservices.Logger', 'Rally.technicalservices.util.TreeBuilding'],
     logger: new Rally.technicalservices.Logger(),
-    items: [
-        {xtype:'container',itemId:'display_box'},
-        {xtype:'tsinfolink'}
-    ],
-    field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
-
-    launch: function() {
+    initComponent: function() {
+        this.callParent();
+    },
+    initItems: function() {
+        this.callParent();
+        
         this._fetchPortfolioNames().then({
             scope: this,
             success: function(pi_model_names){
@@ -184,7 +254,10 @@ Ext.define('CustomApp', {
                 this._gatherData("HierarchicalRequirement").then({
                     scope: this,
                     success:function(all_unordered_items){
-                        this.logger.log("Found items", all_unordered_items);
+                        var ordered_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(all_unordered_items);
+                        this.logger.log("Ordered items", ordered_items);
+                        var ordered_items_as_hashes = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(ordered_items);
+                        this._makeStoreAndShowGrid(ordered_items_as_hashes);
                     },
                     failure:function(error_msg){ alert(error_msg); }
                 });
@@ -193,7 +266,6 @@ Ext.define('CustomApp', {
                 alert(error_msg);
             }
         });
-        
     },
     _gatherData:function(model_name){
         var deferred = Ext.create('Deft.Deferred');
@@ -340,6 +412,64 @@ Ext.define('CustomApp', {
         });
         return deferred.promise;
     },
+    _makeStoreAndShowGrid: function(ordered_items){
+        this.logger.log('_makeStoreAndShowGrid',ordered_items);
+        var tree_store = Ext.create('Ext.data.TreeStore',{
+            model: TSTreeModel,
+            root: {
+                expanded: false,
+                children: ordered_items
+            }
+        });
+        
+        this.logger.log("store",tree_store);
+        
+        var columns = this._getColumns();
+        
+        this.logger.log('columns',columns);
+        
+        this.add({
+            xtype:'treepanel',
+            store: tree_store,
+            cls: 'rally-grid',
+            rootVisible: false,
+            enableColumnMove: true,
+            rowLines: true,
+            viewConfig : {
+                stripeRows : true
+            },
+            columns: columns
+        });
+    },
+    _nameRenderer: function(value,meta_data,record) {
+        this.logger.log("_nameRenderer",value);
+        var display_value = record.get('Name');
+        if ( record.get('FormattedID') ) {
+            var link_text = record.get('FormattedID') + ": " + value;
+            var url = Rally.nav.Manager.getDetailUrl( record );
+            display_value = "<a target='_blank' href='" + url + "'>" + link_text + "</a>";
+        }
+        return display_value;
+    },
+    _getColumns: function() {
+        this.logger.log("_getColumns");
+        var me = this;
+        var name_renderer = function(value,meta_data,record) {
+            return me._nameRenderer(value,meta_data,record);
+        };
+        
+        var columns = [
+            {
+                xtype: 'treecolumn',
+                text: 'Item',
+                dataIndex: 'Name',
+                itemId: 'tree_column',
+                renderer: name_renderer,
+                width: 200
+            }
+        ];
+        return columns;
+    },
     _fetchPortfolioNames: function(){
         var deferred = Ext.create('Deft.Deferred');
         
@@ -372,6 +502,33 @@ Ext.define('CustomApp', {
            }
         });
         return deferred.promise;
+    }
+});
+
+Ext.define('TSTreeModel',{
+    extend: 'Ext.data.Model',
+    fields: [
+        { name: 'FormattedID', type: 'String' },
+        { name: 'Name', type:'String' },
+        { name: '_ref', type:'String' },
+        { name: '_type', type:'String' }
+    ]
+});
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    items: [
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink'}
+    ],
+    field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
+
+    launch: function() {
+        this.down('#display_box').add({
+            xtype:'insideouttree'
+        });
+        
     }
 
 });

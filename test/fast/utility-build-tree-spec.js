@@ -17,7 +17,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             2: child_story
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
         expect(root_items.length).toEqual(1);
         expect(root_items[0].get('Name')).toEqual('test parent');
         expect(root_items[0].get('children').length).toEqual(1);
@@ -41,7 +41,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             2: child_story
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
                 console.log(root_items);
 
         expect(root_items.length).toEqual(1);
@@ -67,7 +67,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             2: two_story
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
 
         expect(root_items.length).toEqual(2);
         expect(root_items[0].get('Name')).toEqual('test 1');
@@ -91,7 +91,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             2: child_story
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
         expect(root_items.length).toEqual(1);
         expect(root_items[0].get('Name')).toEqual('test child');
         expect(root_items[0].get('children').length).toEqual(0);
@@ -121,7 +121,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             1: parent_story
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
 
         expect(root_items.length).toEqual(1);
         expect(root_items[0].get('Name')).toEqual('test parent');
@@ -180,7 +180,7 @@ describe("When using the tree utilities with a hash of found items", function() 
             7: grand_child_story2a
         }
         
-        var root_items = Rally.ts.util.TreeBuilding.constructRootItems(hash);
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
 
         expect(root_items.length).toEqual(2);
         expect(root_items[0].get('Name')).toEqual('test parent');

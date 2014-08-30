@@ -12,7 +12,7 @@ describe("When using the tree utilities with an array of models", function() {
         
         var model_array = [parent_story,child_story];
         
-        var hash_array = Rally.ts.util.TreeBuilding.convertModelsToHashes(model_array);
+        var hash_array = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(model_array);
         expect(hash_array.length).toEqual(2);
         expect(hash_array[0].Name).toEqual('test parent');
     });
@@ -29,7 +29,7 @@ describe("When using the tree utilities with an array of models", function() {
         
         var model_array = [parent_story.getData(),child_story.getData()];
         
-        var hash_array = Rally.ts.util.TreeBuilding.convertModelsToHashes(model_array);
+        var hash_array = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(model_array);
         expect(hash_array.length).toEqual(2);
         expect(hash_array[0].Name).toEqual('test parent');
     });
@@ -50,7 +50,7 @@ describe("When using the tree utilities with an array of models", function() {
         var model_array = [parent_story,child_story];
         
         console.log(model_array);
-        var hash_array = Rally.ts.util.TreeBuilding.convertModelsToHashes(model_array);
+        var hash_array = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(model_array);
         console.log(hash_array);
         expect(hash_array.length).toEqual(2);
         expect(hash_array[0].Name).toEqual('test parent');
