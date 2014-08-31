@@ -28,7 +28,13 @@
      * 
      */
     targetQuery: '(ObjectID > 0)',
-    
+    /**
+     * @cfg {String} targetType
+     * 
+     * Model type path that the query and scope will be applied to (and the tree built from)
+     * 
+     */
+    targetType: 'HierarchicalRequirement',
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -61,7 +67,7 @@
             scope: this,
             success: function(pi_model_names){
                 this.logger.log("Portfolio Item Names: ",pi_model_names);
-                this._gatherData("HierarchicalRequirement").then({
+                this._gatherData().then({
                     scope: this,
                     success:function(all_unordered_items){
                         this.fireEvent('afterload',this);
@@ -77,9 +83,9 @@
             }
         });
     },
-    _gatherData:function(model_name){
+    _gatherData:function(){
         var deferred = Ext.create('Deft.Deferred');
-        this._fetchTargetItems(model_name).then({
+        this._fetchTargetItems().then({
             scope: this,
             success:function(target_items){
                 var fetched_items_by_oid = {};
@@ -100,7 +106,7 @@
         return deferred;
     },
     // The target items are items at the starting level -- query and scope applies
-    _fetchTargetItems: function(model_name){
+    _fetchTargetItems: function(){
         var deferred = Ext.create('Deft.Deferred');
 
         var query = '( ObjectID > 0 )';
@@ -113,16 +119,17 @@
         
         Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
-            model: model_name,
+            model: this.targetType,
             fetch: this._getFetchNames(),
             filters:filters,
+            limit:'Infinity',
             listeners:  {
                 scope: this,
                 load: function(store, records, success){
                     if (success) {
                         deferred.resolve(records);
                     } else {
-                        deferred.reject('Error loading ' + model_name + ' items');
+                        deferred.reject('Error loading ' + this.targetType + ' items');
                     }
                }
            }

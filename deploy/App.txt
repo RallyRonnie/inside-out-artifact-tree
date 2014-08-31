@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Aug 30 2014 18:50:13 GMT-0700 (PDT) -->
+    <!--  Build Date: Sat Aug 30 2014 19:36:37 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Aug 30 2014 18:50:13 GMT-0700 (PDT)";
-        var CHECKSUM = 12439383808;
+        var APP_BUILD_DATE = "Sat Aug 30 2014 19:36:37 GMT-0700 (PDT)";
+        var CHECKSUM = 13621825659;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -249,7 +249,13 @@ Ext.define('Rally.technicalservices.InfoLink',{
      * 
      */
     targetQuery: '(ObjectID > 0)',
-    
+    /**
+     * @cfg {String} targetType
+     * 
+     * Model type path that the query and scope will be applied to (and the tree built from)
+     * 
+     */
+    targetType: 'HierarchicalRequirement',
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -282,7 +288,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
             scope: this,
             success: function(pi_model_names){
                 this.logger.log("Portfolio Item Names: ",pi_model_names);
-                this._gatherData("HierarchicalRequirement").then({
+                this._gatherData().then({
                     scope: this,
                     success:function(all_unordered_items){
                         this.fireEvent('afterload',this);
@@ -298,9 +304,9 @@ Ext.define('Rally.technicalservices.InfoLink',{
             }
         });
     },
-    _gatherData:function(model_name){
+    _gatherData:function(){
         var deferred = Ext.create('Deft.Deferred');
-        this._fetchTargetItems(model_name).then({
+        this._fetchTargetItems().then({
             scope: this,
             success:function(target_items){
                 var fetched_items_by_oid = {};
@@ -321,7 +327,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
         return deferred;
     },
     // The target items are items at the starting level -- query and scope applies
-    _fetchTargetItems: function(model_name){
+    _fetchTargetItems: function(){
         var deferred = Ext.create('Deft.Deferred');
 
         var query = '( ObjectID > 0 )';
@@ -334,16 +340,17 @@ Ext.define('Rally.technicalservices.InfoLink',{
         
         Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
-            model: model_name,
+            model: this.targetType,
             fetch: this._getFetchNames(),
             filters:filters,
+            limit:'Infinity',
             listeners:  {
                 scope: this,
                 load: function(store, records, success){
                     if (success) {
                         deferred.resolve(records);
                     } else {
-                        deferred.reject('Error loading ' + model_name + ' items');
+                        deferred.reject('Error loading ' + this.targetType + ' items');
                     }
                }
            }
@@ -537,7 +544,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'selector_box', margin: 5, height: 50},
+        {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
@@ -564,8 +571,9 @@ Ext.define('CustomApp', {
         container.add({
             xtype:'insideouttree',
             columns: this._getColumns(),
-            targetQuery: '( Iteration.Name = "R3 S1" )',
-            margin: 5,
+            targetType: this.target_type || "UserStory",
+            targetQuery: '( Release.Name = "2013-10" )',
+            margin: 10,
             listeners: {
                 scope:this,
                 afterrender:function(){
@@ -588,9 +596,10 @@ Ext.define('CustomApp', {
         container.add({
             xtype:'rallyfieldpicker',
             autoExpand:false,
+            margin: 10,
             alwaysExpanded: false,
             fieldLabel: 'Show Fields:',
-            labelWidth: 65,
+            labelWidth: 75,
             modelTypes:model_names,
             useColumnHeaderLabels: true,
             listeners: {
@@ -600,6 +609,35 @@ Ext.define('CustomApp', {
                     picker.collapse();
                     this._addTree();
                 }
+            }
+        });
+        
+        container.add({
+            xtype:'rallycombobox',
+            displayField: 'DisplayName',
+            margin: 10,
+            autoExpand: true,
+            storeConfig: {
+                autoLoad: true,
+                model:'TypeDefinition',
+                filters: [
+                  {property:'Creatable',value:true},
+                  {property:'Restorable',value:true},
+                  {property:'ElementName',operator:'!contains',value:'Test'},
+                  {property:'ElementName',operator:'!contains',value:'Task'}, 
+                  {property:'ElementName',operator:'!contains',value:'Defect'}
+                ]
+            },
+            fieldLabel: 'Target Level:',
+            labelWidth: 75,
+            valueField:'TypePath',
+            listeners: {
+                scope: this,
+                select: function(cb,new_value){
+                    this.target_type = cb.getRecord().get('TypePath');
+                    this._addTree();
+                }
+            
             }
         });
     },

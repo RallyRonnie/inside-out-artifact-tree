@@ -3,7 +3,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
-        {xtype:'container',itemId:'selector_box', margin: 5, height: 50},
+        {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
@@ -30,8 +30,9 @@ Ext.define('CustomApp', {
         container.add({
             xtype:'insideouttree',
             columns: this._getColumns(),
-            targetQuery: '( Iteration.Name = "R3 S1" )',
-            margin: 5,
+            targetType: this.target_type || "UserStory",
+            targetQuery: '( Release.Name = "2013-10" )',
+            margin: 10,
             listeners: {
                 scope:this,
                 afterrender:function(){
@@ -54,9 +55,10 @@ Ext.define('CustomApp', {
         container.add({
             xtype:'rallyfieldpicker',
             autoExpand:false,
+            margin: 10,
             alwaysExpanded: false,
             fieldLabel: 'Show Fields:',
-            labelWidth: 65,
+            labelWidth: 75,
             modelTypes:model_names,
             useColumnHeaderLabels: true,
             listeners: {
@@ -66,6 +68,35 @@ Ext.define('CustomApp', {
                     picker.collapse();
                     this._addTree();
                 }
+            }
+        });
+        
+        container.add({
+            xtype:'rallycombobox',
+            displayField: 'DisplayName',
+            margin: 10,
+            autoExpand: true,
+            storeConfig: {
+                autoLoad: true,
+                model:'TypeDefinition',
+                filters: [
+                  {property:'Creatable',value:true},
+                  {property:'Restorable',value:true},
+                  {property:'ElementName',operator:'!contains',value:'Test'},
+                  {property:'ElementName',operator:'!contains',value:'Task'}, 
+                  {property:'ElementName',operator:'!contains',value:'Defect'}
+                ]
+            },
+            fieldLabel: 'Target Level:',
+            labelWidth: 75,
+            valueField:'TypePath',
+            listeners: {
+                scope: this,
+                select: function(cb,new_value){
+                    this.target_type = cb.getRecord().get('TypePath');
+                    this._addTree();
+                }
+            
             }
         });
     },
