@@ -63,6 +63,7 @@ Ext.define('CustomApp', {
                 scope: this,
                 blur: function(picker){
                     this.additional_columns = picker.getValue();
+                    picker.collapse();
                     this._addTree();
                 }
             }

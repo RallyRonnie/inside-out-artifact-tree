@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Aug 30 2014 13:26:50 GMT-0700 (PDT) -->
+    <!--  Build Date: Sat Aug 30 2014 18:50:13 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Aug 30 2014 13:26:50 GMT-0700 (PDT)";
-        var CHECKSUM = 12231961759;
+        var APP_BUILD_DATE = "Sat Aug 30 2014 18:50:13 GMT-0700 (PDT)";
+        var CHECKSUM = 12439383808;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -471,9 +471,6 @@ Ext.define('Rally.technicalservices.InfoLink',{
             enableColumnMove: true,
             sortableColumns: false,
             rowLines: true,
-            viewConfig : {
-                stripeRows : true
-            },
             columns: this.columns
         });
 
@@ -561,9 +558,10 @@ Ext.define('CustomApp', {
 
     },
     _addTree: function() {
-        this.down('#display_box').removeAll();
+        var container = this.down('#display_box');
+        container.removeAll();
         
-        this.down('#display_box').add({
+        container.add({
             xtype:'insideouttree',
             columns: this._getColumns(),
             targetQuery: '( Iteration.Name = "R3 S1" )',
@@ -586,17 +584,20 @@ Ext.define('CustomApp', {
         });
     },
     _addSelectors: function(container){
+        var model_names = Ext.Object.getKeys(this.models);
         container.add({
             xtype:'rallyfieldpicker',
             autoExpand:false,
             alwaysExpanded: false,
             fieldLabel: 'Show Fields:',
             labelWidth: 65,
-            modelTypes:['UserStory'],
+            modelTypes:model_names,
+            useColumnHeaderLabels: true,
             listeners: {
                 scope: this,
                 blur: function(picker){
                     this.additional_columns = picker.getValue();
+                    picker.collapse();
                     this._addTree();
                 }
             }
@@ -620,6 +621,7 @@ Ext.define('CustomApp', {
                 itemId: 'tree_column',
                 renderer: name_renderer,
                 width: 200,
+                menuDisabled: true,
                 otherFields: ['FormattedID','ObjectID']
             }
         ];
@@ -628,8 +630,9 @@ Ext.define('CustomApp', {
             this.logger.log("Additional fields: ", this.additional_columns);
             Ext.Array.each(this.additional_columns, function(field) {
                 columns.push({
-                    text:field.get('displayName'),
+                    text:field.get('displayName').replace(/\(.*\)/,""),
                     dataIndex:field.get('name'),
+                    menuDisabled: true,
                     renderer:function(value,meta_data,record){
                         return me._magicRenderer(field,value,meta_data,record) || "";
                     }
@@ -741,8 +744,9 @@ Ext.define('CustomApp', {
     cursor: pointer;
 }
 
-.icon-builder-template .icon-builder-span {
-    position: none;
+.rally-grid .icon-builder-template .icon-builder-span {
+    left: -8px; 
+    top: 0px; 
 }
     </style>
 
