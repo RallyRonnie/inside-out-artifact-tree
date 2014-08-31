@@ -248,10 +248,8 @@
             cls: 'rally-grid',
             rootVisible: false,
             enableColumnMove: true,
+            sortableColumns: false,
             rowLines: true,
-            viewConfig : {
-                stripeRows : true
-            },
             columns: this.columns
         });
 

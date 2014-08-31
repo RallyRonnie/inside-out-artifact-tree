@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Aug 30 2014 09:27:02 GMT-0700 (PDT) -->
+    <!--  Build Date: Sat Aug 30 2014 13:26:50 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Aug 30 2014 09:27:02 GMT-0700 (PDT)";
-        var CHECKSUM = 7004747286;
+        var APP_BUILD_DATE = "Sat Aug 30 2014 13:26:50 GMT-0700 (PDT)";
+        var CHECKSUM = 12231961759;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -241,21 +241,52 @@ Ext.define('Rally.technicalservices.InfoLink',{
     alias: 'widget.insideouttree',
     requires: [ 'Rally.technicalservices.Logger', 'Rally.technicalservices.util.TreeBuilding'],
     logger: new Rally.technicalservices.Logger(),
+    columns: [],
+    /**
+     * @cfg {String} targetQuery
+     * 
+     * WSAPI query to be applied at the target level
+     * 
+     */
+    targetQuery: '(ObjectID > 0)',
+    
     initComponent: function() {
+        if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
+        
         this.callParent();
+        this.addEvents(
+            /**
+             * @event aftertree
+             * Fires when the tree has been created and placed on the page.
+             * @param {Rally.technicalservices.InsideOutTree} this
+             * @param {Ext.tree.Panel} tree
+             */
+            'aftertree',
+            /**
+             * @event afterloadtargets
+             * Fires when data has been collected from the initial target query
+             * @param {Rally.technicalservices.InsideOutTree} this
+             */
+            'afterloadtargets',
+            /**
+             * @event afterload
+             * Fires when data has been collected from the parents and children
+             * @param {Rally.technicalservices.InsideOutTree} this
+             */
+            'afterload'
+         );
     },
     initItems: function() {
         this.callParent();
-        
         this._fetchPortfolioNames().then({
             scope: this,
             success: function(pi_model_names){
-                this.logger.log(pi_model_names);
+                this.logger.log("Portfolio Item Names: ",pi_model_names);
                 this._gatherData("HierarchicalRequirement").then({
                     scope: this,
                     success:function(all_unordered_items){
+                        this.fireEvent('afterload',this);
                         var ordered_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(all_unordered_items);
-                        this.logger.log("Ordered items", ordered_items);
                         var ordered_items_as_hashes = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(ordered_items);
                         this._makeStoreAndShowGrid(ordered_items_as_hashes);
                     },
@@ -269,16 +300,14 @@ Ext.define('Rally.technicalservices.InfoLink',{
     },
     _gatherData:function(model_name){
         var deferred = Ext.create('Deft.Deferred');
-        this._fetchTargetItems(model_name,this.field_names).then({
+        this._fetchTargetItems(model_name).then({
             scope: this,
             success:function(target_items){
-                this.logger.log(target_items);
-
                 var fetched_items_by_oid = {};
                 Ext.Array.each(target_items,function(item){
                     fetched_items_by_oid[item.get('ObjectID')] = item;
                 });
-                
+                this.fireEvent('afterloadtargets',this);
                 this._fetchParentItems(target_items,fetched_items_by_oid).then({
                     scope: this,
                     success: function(all_unordered_items){
@@ -292,13 +321,22 @@ Ext.define('Rally.technicalservices.InfoLink',{
         return deferred;
     },
     // The target items are items at the starting level -- query and scope applies
-    _fetchTargetItems: function(model_name,field_names){
+    _fetchTargetItems: function(model_name){
         var deferred = Ext.create('Deft.Deferred');
 
+        var query = '( ObjectID > 0 )';
+        
+        if ( this.targetQuery ){
+            query = this.targetQuery;
+        }
+        
+        var filters = Rally.data.wsapi.Filter.fromQueryString(query);
+        
         Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
             model: model_name,
-            fetch: field_names,
+            fetch: this._getFetchNames(),
+            filters:filters,
             listeners:  {
                 scope: this,
                 load: function(store, records, success){
@@ -324,7 +362,6 @@ Ext.define('Rally.technicalservices.InfoLink',{
         Ext.Array.each(child_items,function(child){
             var parent = this._getParentFrom(child);
             if ( parent ) {
-                console.log(parent);
                 var parent_type = parent._type;
                 var parent_oid = parent.ObjectID;
                 if ( !parents_by_type[parent_type] ) { parents_by_type[parent_type] = []; }
@@ -348,7 +385,6 @@ Ext.define('Rally.technicalservices.InfoLink',{
             Deft.Promise.all(promises).then({
                 scope: this,
                 success: function(results) {
-                    this.logger.log("Found ", results);
                     var parents = Ext.Array.flatten(results);
                     Ext.Array.each(parents,function(parent){
                         fetched_items[parent.get('ObjectID')] = parent;
@@ -358,14 +394,12 @@ Ext.define('Rally.technicalservices.InfoLink',{
                 failure: function(error_msg){ deferred.reject(error_msg); }
             });
         } else {
-            this.logger.log("DONE:",fetched_items);
             deferred.resolve(fetched_items);
         }
         return deferred.promise;
 
     },
     _getParentFrom:function(child){
-        this.logger.log(child.get('_type'));
         var type = child.get('_type');
         if ( type == "hierarchicalrequirement" ) {
             var parent = child.get('Parent') || child.get('PortfolioItem');
@@ -394,7 +428,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
         Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
             model: model_name,
-            fetch: this.field_names,
+            fetch: this._getFetchNames(),
             filters: filters,
             context: {
                 project: null
@@ -414,61 +448,36 @@ Ext.define('Rally.technicalservices.InfoLink',{
     },
     _makeStoreAndShowGrid: function(ordered_items){
         this.logger.log('_makeStoreAndShowGrid',ordered_items);
+            
+        var model_config = {
+            extend: 'TSTreeModel',
+            fields: this._getFetchNames()
+        };
+        Ext.define('TSTreeModelWithAdditions', model_config);
+        
         var tree_store = Ext.create('Ext.data.TreeStore',{
-            model: TSTreeModel,
+            model: TSTreeModelWithAdditions,
             root: {
                 expanded: false,
                 children: ordered_items
             }
         });
         
-        this.logger.log("store",tree_store);
-        
-        var columns = this._getColumns();
-        
-        this.logger.log('columns',columns);
-        
-        this.add({
+        var tree = this.add({
             xtype:'treepanel',
             store: tree_store,
             cls: 'rally-grid',
             rootVisible: false,
             enableColumnMove: true,
+            sortableColumns: false,
             rowLines: true,
             viewConfig : {
                 stripeRows : true
             },
-            columns: columns
+            columns: this.columns
         });
-    },
-    _nameRenderer: function(value,meta_data,record) {
-        this.logger.log("_nameRenderer",value);
-        var display_value = record.get('Name');
-        if ( record.get('FormattedID') ) {
-            var link_text = record.get('FormattedID') + ": " + value;
-            var url = Rally.nav.Manager.getDetailUrl( record );
-            display_value = "<a target='_blank' href='" + url + "'>" + link_text + "</a>";
-        }
-        return display_value;
-    },
-    _getColumns: function() {
-        this.logger.log("_getColumns");
-        var me = this;
-        var name_renderer = function(value,meta_data,record) {
-            return me._nameRenderer(value,meta_data,record);
-        };
-        
-        var columns = [
-            {
-                xtype: 'treecolumn',
-                text: 'Item',
-                dataIndex: 'Name',
-                itemId: 'tree_column',
-                renderer: name_renderer,
-                width: 200
-            }
-        ];
-        return columns;
+
+        this.fireEvent('aftertree',this,tree);
     },
     _fetchPortfolioNames: function(){
         var deferred = Ext.create('Deft.Deferred');
@@ -502,6 +511,18 @@ Ext.define('Rally.technicalservices.InfoLink',{
            }
         });
         return deferred.promise;
+    },
+    _getFetchNames: function() {
+        var base_field_names = ['ObjectID','Name','Parent','PortfolioItem','_type'];
+        
+        Ext.Array.each(this.columns, function(column){
+            base_field_names = Ext.Array.merge(base_field_names,[column.dataIndex]);
+            if ( column.otherFields ) {
+                base_field_names = Ext.Array.merge(base_field_names,column.otherFields);
+            }
+        });
+        
+        return base_field_names;
     }
 });
 
@@ -519,16 +540,177 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     items: [
+        {xtype:'container',itemId:'selector_box', margin: 5, height: 50},
         {xtype:'container',itemId:'display_box'},
         {xtype:'tsinfolink'}
     ],
     field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
 
     launch: function() {
-        this.down('#display_box').add({
-            xtype:'insideouttree'
+        this._fetchModels().then({
+            scope: this,
+            success:function(models){
+                this.models = models;
+                this._addSelectors(this.down('#selector_box'));
+                this._addTree();
+            },
+            failure: function(error_msg){
+                alert(error_msg);
+            }
         });
+
+    },
+    _addTree: function() {
+        this.down('#display_box').removeAll();
         
+        this.down('#display_box').add({
+            xtype:'insideouttree',
+            columns: this._getColumns(),
+            targetQuery: '( Iteration.Name = "R3 S1" )',
+            margin: 5,
+            listeners: {
+                scope:this,
+                afterrender:function(){
+                    this.setLoading("Loading tree...");
+                },
+                afterloadtargets:function() {
+                    this.setLoading('Finding relatives...');
+                },
+                afterload:function(){
+                    this.setLoading('Building tree...');
+                },
+                aftertree:function(){
+                    this.setLoading(false);
+                }
+            }
+        });
+    },
+    _addSelectors: function(container){
+        container.add({
+            xtype:'rallyfieldpicker',
+            autoExpand:false,
+            alwaysExpanded: false,
+            fieldLabel: 'Show Fields:',
+            labelWidth: 65,
+            modelTypes:['UserStory'],
+            listeners: {
+                scope: this,
+                blur: function(picker){
+                    this.additional_columns = picker.getValue();
+                    this._addTree();
+                }
+            }
+        });
+    },
+    _getColumns: function() {
+        var me = this;
+        var name_renderer = function(value,meta_data,record) {
+            return me._nameRenderer(value,meta_data,record);
+        };
+        
+        var magic_renderer = function(field,value,meta_data,record){
+            return me._magicRenderer(field,value,meta_data,record);
+        }
+        
+        var columns = [
+            {
+                xtype: 'treecolumn',
+                text: 'Item',
+                dataIndex: 'Name',
+                itemId: 'tree_column',
+                renderer: name_renderer,
+                width: 200,
+                otherFields: ['FormattedID','ObjectID']
+            }
+        ];
+        
+        if ( this.additional_columns ) {
+            this.logger.log("Additional fields: ", this.additional_columns);
+            Ext.Array.each(this.additional_columns, function(field) {
+                columns.push({
+                    text:field.get('displayName'),
+                    dataIndex:field.get('name'),
+                    renderer:function(value,meta_data,record){
+                        return me._magicRenderer(field,value,meta_data,record) || "";
+                    }
+                });
+            });
+        }
+        return columns;
+    },
+    _magicRenderer: function(field,value,meta_data,record){
+        var field_name = field.get('name');
+        var record_type = record.get('_type');
+        var model = this.models[record_type];
+        // will fail fi field is not on the record
+        // (e.g., we pick accepted date, by are also showing features
+        try {
+            var template = Rally.ui.renderer.RendererFactory.getRenderTemplate(model.getField(field_name)) || "";
+            return template.apply(record.data);
+        } catch(e) {
+            return ".";
+        }
+    },
+    _nameRenderer: function(value,meta_data,record) {
+        var display_value = record.get('Name');
+        if ( record.get('FormattedID') ) {
+            var link_text = record.get('FormattedID') + ": " + value;
+            var url = Rally.nav.Manager.getDetailUrl( record );
+            display_value = "<a target='_blank' href='" + url + "'>" + link_text + "</a>";
+        }
+        return display_value;
+    },
+    _fetchModels: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        this._fetchPortfolioNames().then({
+            scope: this,
+            success:function(pi_names){
+                var model_names = Ext.Array.merge(['defect','hierarchicalrequirement'],pi_names);
+                console.log("model_names",model_names);
+                Rally.data.ModelFactory.getModels({
+                    types: model_names,
+                    success: function(model_hash) {
+                        deferred.resolve(model_hash);
+                    },
+                    failure: deferred.reject
+                });
+            },
+            failure:deferred.reject
+        });
+        return deferred.promise;
+    },
+    _fetchPortfolioNames: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        Ext.create('Rally.data.wsapi.Store', {
+            autoLoad: true,
+            model: 'TypeDefinition',
+            sorters: [{
+              property: 'Ordinal',
+              direction: 'ASC'
+            }],
+            filters: [{
+              property: 'Parent.Name',
+              operator: '=',
+              value: 'Portfolio Item'
+            }, {
+              property: 'Creatable',
+              operator: '=',
+              value: true
+            }],
+            listeners:  {
+                scope: this,
+                load: function(store, records, success){
+                    if (success) {
+                        var pi_model_names = _.map(records, function (rec) { return Ext.util.Format.lowercase(rec.get('TypePath')); });
+                        deferred.resolve(pi_model_names);
+                    } else {
+                        deferred.reject('Error loading portofolio item names.');
+                    }
+               }
+           }
+        });
+        return deferred.promise;
     }
 
 });
@@ -557,6 +739,10 @@ Ext.define('CustomApp', {
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
+}
+
+.icon-builder-template .icon-builder-span {
+    position: none;
 }
     </style>
 

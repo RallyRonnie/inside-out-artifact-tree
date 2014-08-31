@@ -15,3 +15,8 @@
     margin-right: 5px;
     cursor: pointer;
 }
+
+.rally-grid .icon-builder-template .icon-builder-span {
+    left: -8px; 
+    top: 0px; 
+}
