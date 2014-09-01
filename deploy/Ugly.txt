@@ -3,10 +3,10 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Sep 01 2014 09:05:09 GMT-0700 (PDT) -->
+    <!--  Build Date: Mon Sep 01 2014 16:44:04 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Sep 01 2014 09:05:09 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Mon Sep 01 2014 16:44:04 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     

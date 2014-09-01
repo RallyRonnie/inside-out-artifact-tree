@@ -71,6 +71,7 @@
                     scope: this,
                     success:function(all_unordered_items){
                         this.fireEvent('afterload',this);
+
                         var ordered_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(all_unordered_items);
                         var ordered_items_as_hashes = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(ordered_items);
                         this._makeStoreAndShowGrid(ordered_items_as_hashes);
@@ -93,10 +94,20 @@
                     fetched_items_by_oid[item.get('ObjectID')] = item;
                 });
                 this.fireEvent('afterloadtargets',this);
-                this._fetchParentItems(target_items,fetched_items_by_oid).then({
+                var promises = [];
+                promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
+                promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                
+                Deft.Promise.all(promises).then({
                     scope: this,
                     success: function(all_unordered_items){
-                        deferred.resolve(all_unordered_items);
+                        var flattened_array = Ext.Array.flatten(all_unordered_items);
+                        
+                        var all_unordered_items_hash = {};
+                        if ( flattened_array.length > 0 ) {
+                            all_unordered_items_hash = flattened_array[0];
+                        }
+                        deferred.resolve(all_unordered_items_hash);
                     },
                     failure: function(error_msg) { deferred.reject(error_msg); }
                 });
@@ -134,6 +145,69 @@
                }
            }
         });
+        return deferred.promise;
+    },
+    _fetchChildItems: function(parent_items,fetched_items, deferred){
+        this.logger.log('_fetchChildItems',parent_items.length);
+        if ( !deferred ) {
+            deferred = Ext.create('Deft.Deferred');
+        }
+        
+        var promises = [];
+        Ext.Object.each(parent_items,function(oid,parent){
+            var type = parent.get('_type');
+            var children_fields = this._getChildrenFieldsFor(type);
+            console.log("children fields",children_fields," for ", type, parent);
+            if ( children_fields ) {
+                Ext.Array.each(children_fields,function(children_field) {
+                    promises.push(this._fetchCollection(parent,children_field));
+                },this);
+            }
+        },this);
+        
+        if (promises.length > 0) {
+            Deft.Promise.all(promises).then({
+                scope: this,
+                success: function(results) {
+                    var children = Ext.Array.flatten(results);
+                    Ext.Array.each(children,function(child){
+                        if ( !fetched_items[child.get('ObjectID') ] ) {
+                            var parent = this._getParentFrom(child);
+                            fetched_items[child.get('ObjectID')] = child;
+                        }
+                    },this);
+                    this._fetchChildItems(children,fetched_items,deferred);
+                },
+                failure: function(error_msg){ deferred.reject(error_msg); }
+            });
+        } else {
+            this.logger.log("resolving _fetchChildItems");
+            deferred.resolve(fetched_items);
+        }
+        return deferred.promise;
+    },
+    _fetchCollection: function(parent,children_field){
+        var deferred = Ext.create('Deft.Deferred');
+        var fields_to_fetch = this._getFetchNames();
+        
+        if ( parent.get(children_field)){
+            parent.getCollection(children_field,{
+                autoLoad: true,
+                fetch: fields_to_fetch,
+                listeners: {
+                    scope: this,
+                    load: function(store,records,success){
+                        if ( success ) {
+                            deferred.resolve(records);
+                        } else {
+                            deferred.reject("Problem fetching collection ", children_field);
+                        }
+                    }
+                }
+            });
+        } else {
+            deferred.resolve([]);
+        }
         return deferred.promise;
     },
     _fetchParentItems: function(child_items,fetched_items, deferred){
@@ -198,9 +272,59 @@
             child.set('parent', parent);
             return parent;
         }
+        
+        if ( type == "task" ) {
+            var parent = child.get("WorkProduct");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        if ( type == "defect" ) {
+            var parent = child.get("Requirement");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        return null;
+    },
+    _getParentFieldsFor:function(type) {
+        if ( type == "hierarchicalrequirement" ) {
+            return ['Parent','PortfolioItem'];
+        }
+        
+        if ( /portfolio/.test(type) ) {
+            return ['Parent'];
+        }
+        
+        if ( type == "task" ) {
+            return ['WorkProduct'];
+        }
+        return null;
+    },
+    _getChildrenFieldsFor: function(type) {
+        if ( type == "hierarchicalrequirement" ) {
+            return ['Tasks','Defects','Children'];
+        }
+        if ( /portfolio/.test(type) ) {
+            return ['Children','UserStories'];
+        }
+        
+        if ( type == "task" ) {
+            return [];
+        }
+        return null;
+    },
+    _getChildTypesFor: function(type){
+        if ( type == "hierarchicalrequirement" ) {
+            return ['HierarchicalRequirement','Task'];
+        }
+        if ( /portfolio/.test(type) ) {
+            return ['HierarchicalRequirement','PortfolioItem'];
+        }
         return null;
     },
     _fetchItemsByOIDArray:function(model_name,oids){
+        this.logger.log("_fetchItemsByOIDArray (", oids.length, ")");
         var deferred = Ext.create('Deft.Deferred');
         var filters = Ext.create('Rally.data.wsapi.Filter',{property:'ObjectID',value:oids[0]});
         
@@ -232,6 +356,7 @@
         });
         return deferred.promise;
     },
+
     _makeStoreAndShowGrid: function(ordered_items){
         this.logger.log('_makeStoreAndShowGrid',ordered_items);
             
@@ -296,15 +421,18 @@
         return deferred.promise;
     },
     _getFetchNames: function() {
-        var base_field_names = ['ObjectID','Name','Parent','PortfolioItem','_type'];
+        var base_field_names = ['ObjectID','_type','Name','Parent','PortfolioItem','Requirement','WorkProduct'];
+        var children_field_names = ['Children','Tasks','UserStories'];
+        
+        var field_names = Ext.Array.merge(base_field_names,children_field_names);
         
         Ext.Array.each(this.columns, function(column){
-            base_field_names = Ext.Array.merge(base_field_names,[column.dataIndex]);
+            field_names = Ext.Array.merge(field_names,[column.dataIndex]);
             if ( column.otherFields ) {
-                base_field_names = Ext.Array.merge(base_field_names,column.otherFields);
+                field_names = Ext.Array.merge(field_names,column.otherFields);
             }
         });
         
-        return base_field_names;
+        return field_names;
     }
 });
