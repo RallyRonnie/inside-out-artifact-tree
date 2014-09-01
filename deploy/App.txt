@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Sep 01 2014 16:44:04 GMT-0700 (PDT) -->
+    <!--  Build Date: Mon Sep 01 2014 16:50:08 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Sep 01 2014 16:44:04 GMT-0700 (PDT)";
-        var CHECKSUM = 19840069288;
+        var APP_BUILD_DATE = "Mon Sep 01 2014 16:50:08 GMT-0700 (PDT)";
+        var CHECKSUM = 20206654402;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -256,6 +256,20 @@ Ext.define('Rally.technicalservices.InfoLink',{
      * 
      */
     targetType: 'HierarchicalRequirement',
+    /**
+     * @cfg {Boolean} treeScopeDown
+     * 
+     * True to include searching for children and other descendants
+     */
+    treeScopeDown: true,
+    /**
+     * @cfg {Boolean} treeScopeUp
+     * 
+     * True to include searching for parents and other ancestors
+     */
+    treeScopeUp: true,
+    
+    
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -316,8 +330,14 @@ Ext.define('Rally.technicalservices.InfoLink',{
                 });
                 this.fireEvent('afterloadtargets',this);
                 var promises = [];
-                promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
-                promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                
+                if ( this.treeScopeDown ) {
+                    promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                }
+                
+                if ( this.treeScopeUp ) {
+                    promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
+                }
                 
                 Deft.Promise.all(promises).then({
                     scope: this,
@@ -378,7 +398,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
         Ext.Object.each(parent_items,function(oid,parent){
             var type = parent.get('_type');
             var children_fields = this._getChildrenFieldsFor(type);
-            console.log("children fields",children_fields," for ", type, parent);
+
             if ( children_fields ) {
                 Ext.Array.each(children_fields,function(children_field) {
                     promises.push(this._fetchCollection(parent,children_field));

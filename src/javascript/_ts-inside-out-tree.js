@@ -35,6 +35,20 @@
      * 
      */
     targetType: 'HierarchicalRequirement',
+    /**
+     * @cfg {Boolean} treeScopeDown
+     * 
+     * True to include searching for children and other descendants
+     */
+    treeScopeDown: true,
+    /**
+     * @cfg {Boolean} treeScopeUp
+     * 
+     * True to include searching for parents and other ancestors
+     */
+    treeScopeUp: true,
+    
+    
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -95,8 +109,14 @@
                 });
                 this.fireEvent('afterloadtargets',this);
                 var promises = [];
-                promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
-                promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                
+                if ( this.treeScopeDown ) {
+                    promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                }
+                
+                if ( this.treeScopeUp ) {
+                    promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
+                }
                 
                 Deft.Promise.all(promises).then({
                     scope: this,
@@ -157,7 +177,7 @@
         Ext.Object.each(parent_items,function(oid,parent){
             var type = parent.get('_type');
             var children_fields = this._getChildrenFieldsFor(type);
-            console.log("children fields",children_fields," for ", type, parent);
+
             if ( children_fields ) {
                 Ext.Array.each(children_fields,function(children_field) {
                     promises.push(this._fetchCollection(parent,children_field));
