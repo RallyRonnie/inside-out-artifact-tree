@@ -31,7 +31,7 @@ Ext.define('CustomApp', {
             xtype:'insideouttree',
             columns: this._getColumns(),
             targetType: this.target_type || "UserStory",
-            targetQuery: '( Release.Name = "2013-10" )',
+            targetQuery: this.target_query,
             margin: 10,
             listeners: {
                 scope:this,
@@ -61,6 +61,19 @@ Ext.define('CustomApp', {
             labelWidth: 75,
             modelTypes:model_names,
             useColumnHeaderLabels: true,
+            stateful: true,
+            stateId: 'rally.techservices.fields',
+            stateEvents:['blur','select'],
+            getState: function() {
+                console.log('here');
+                console.log(this.getValue());
+                var value_array = [];
+                Ext.Array.each(this.getValue(), function(value){
+                    value_array.push(value.get('name'));
+                });
+                
+                return this.addPropertyToState({},'value',value_array);
+            },
             listeners: {
                 scope: this,
                 blur: function(picker){
@@ -90,6 +103,9 @@ Ext.define('CustomApp', {
             fieldLabel: 'Target Level:',
             labelWidth: 75,
             valueField:'TypePath',
+            stateful: true,
+            stateId: 'rally.techservices.target.type.path',
+            stateEvents:['select'],
             listeners: {
                 scope: this,
                 select: function(cb,new_value){
@@ -97,6 +113,26 @@ Ext.define('CustomApp', {
                     this._addTree();
                 }
             
+            }
+        });
+        
+        container.add({
+            xtype:'rallytextfield',
+            fieldLabel: 'Target Query:',
+            labelWidth: 85,
+            margin: 10,
+            width: 400,
+            stateful: true,
+            stateId: 'rally.techservices.target.query',
+            stateEvents:['blur'],
+            listeners: {
+                scope: this,
+                blur: function(textbox){
+                    if ( this.target_query != textbox.getValue() ) {
+                        this.target_query = textbox.getValue();
+                        this._addTree();
+                    }
+                }
             }
         });
     },
