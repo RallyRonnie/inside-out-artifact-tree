@@ -15,16 +15,21 @@ Ext.define('CustomApp', {
             success:function(models){
                 this.models = models;
                 this._addSelectors(this.down('#selector_box'));
-                this._addTree();
+                // this._addTree();
             },
             failure: function(error_msg){
                 alert(error_msg);
+                this.setLoading(false);
             }
         });
 
     },
     _addTree: function() {
         var container = this.down('#display_box');
+        
+        this.logger.log("--");
+        this.logger.log("_addTree",this.additional_columns,this.target_type,this.target_query);
+        this.logger.log("--");
         container.removeAll();
         
         container.add({
@@ -52,9 +57,11 @@ Ext.define('CustomApp', {
     },
     _addSelectors: function(container){
         var model_names = Ext.Object.getKeys(this.models);
-        container.add({
+        var me = this;
+        
+        var field_picker = container.add({
             xtype:'rallyfieldpicker',
-            autoExpand:false,
+            autoExpand:true,
             margin: 10,
             alwaysExpanded: false,
             fieldLabel: 'Show Fields:',
@@ -65,8 +72,6 @@ Ext.define('CustomApp', {
             stateId: 'rally.techservices.fields',
             stateEvents:['blur','select'],
             getState: function() {
-                console.log('here');
-                console.log(this.getValue());
                 var value_array = [];
                 Ext.Array.each(this.getValue(), function(value){
                     value_array.push(value.get('name'));
@@ -77,12 +82,25 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this,
                 blur: function(picker){
-                    this.additional_columns = picker.getValue();
+                    console.log('blur');
+                    var additional_columns = picker.getValue() || [];
+                    this.logger.log("Changing picker from ", this.additional_columns, " to ", additional_columns);
+                    if ( this._fieldArraysAreDifferent(this.additional_columns,additional_columns) ) {
+                        this.additional_columns = additional_columns;
+                        picker.collapse();
+                        this._addTree();
+                    }
+                },
+                change: function(picker) {
+                    this.additional_columns = picker.getValue() || [];
                     picker.collapse();
-                    this._addTree();
+                    if ( this.additional_columns.length > 0 ) {
+                        this._addTree();
+                    }
                 }
             }
         });
+        field_picker.on('expand',function(picker){picker.collapse();},this,{single:true});
         
         container.add({
             xtype:'rallycombobox',
@@ -105,18 +123,20 @@ Ext.define('CustomApp', {
             valueField:'TypePath',
             stateful: true,
             stateId: 'rally.techservices.target.type.path',
-            stateEvents:['select'],
+            stateEvents:['select','change'],
             listeners: {
                 scope: this,
-                select: function(cb,new_value){
-                    this.target_type = cb.getRecord().get('TypePath');
-                    this._addTree();
+                change: function(cb,new_value){
+                    if ( this.target_type !== cb.getRecord().get('TypePath')) {
+                        this.target_type = cb.getRecord().get('TypePath');
+                        this._addTree();
+                    }
                 }
             
             }
         });
         
-        container.add({
+        var query_box = container.add({
             xtype:'rallytextfield',
             fieldLabel: 'Target Query:',
             labelWidth: 85,
@@ -128,13 +148,22 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this,
                 blur: function(textbox){
+                    console.log('blur');
                     if ( this.target_query != textbox.getValue() ) {
                         this.target_query = textbox.getValue();
                         this._addTree();
                     }
+                },
+                staterestore: function(textbox,state){
+                    console.log('query restore');
+                    if ( this.target_query != state.value ) {
+                        this.target_query = state.value;
+                        this._addTree();
+                    };
                 }
             }
         });
+
     },
     _getColumns: function() {
         var me = this;
@@ -247,6 +276,30 @@ Ext.define('CustomApp', {
            }
         });
         return deferred.promise;
+    },
+    _fieldArraysAreDifferent:function(fields_1,fields_2) {
+        var changed = false;
+        Ext.Array.each(fields_1, function(field_1){
+            var in_fields_2 = false;
+            Ext.Array.each(fields_2,function(field_2){
+                if ( field_2.get('name') == field_1.get('name') ) {
+                    in_fields_2 = true;
+                }
+            });
+            if ( ! in_fields_2 ) { changed=true; }
+        });
+        
+        Ext.Array.each(fields_2, function(field_2){
+            var in_fields_1 = false;
+            Ext.Array.each(fields_1,function(field_1){
+                if ( field_1.get('name') == field_2.get('name')) {
+                    in_fields_1 = true;
+                }
+            });
+            if ( ! in_fields_1 ) { changed=true; }
+        });
+        
+        return changed;
     }
 
 });

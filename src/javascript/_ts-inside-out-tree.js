@@ -90,11 +90,15 @@
                         var ordered_items_as_hashes = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(ordered_items);
                         this._makeStoreAndShowGrid(ordered_items_as_hashes);
                     },
-                    failure:function(error_msg){ alert(error_msg); }
+                    failure:function(error_msg){ 
+                        this.fireEvent('aftertree',this);
+                        this.add({xtype:'container',html:error_msg}); 
+                    }
                 });
             },
             failure: function(error_msg){
-                alert(error_msg);
+                this.fireEvent('aftertree',this);
+                this.add({xtype:'container',html:error_msg}); 
             }
         });
     },
@@ -146,7 +150,12 @@
             query = this.targetQuery;
         }
         
-        var filters = Rally.data.wsapi.Filter.fromQueryString(query);
+        try {
+            var filters = Rally.data.wsapi.Filter.fromQueryString(query);
+            console.log('filters:',filters);
+        } catch(e) {
+            deferred.reject("Filter is poorly constructed");
+        }
         
         Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
