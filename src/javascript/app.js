@@ -182,7 +182,7 @@ Ext.define('CustomApp', {
                 dataIndex: 'Name',
                 itemId: 'tree_column',
                 renderer: name_renderer,
-                width: 200,
+                width: 400,
                 menuDisabled: true,
                 otherFields: ['FormattedID','ObjectID']
             }
