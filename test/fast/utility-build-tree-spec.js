@@ -42,13 +42,36 @@ describe("When using the tree utilities with a hash of found items", function() 
         }
         
         var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(hash);
-                console.log(root_items);
 
         expect(root_items.length).toEqual(1);
         expect(root_items[0].get('Name')).toEqual('test parent for not a model');
         expect(root_items[0].get('children').length).toEqual(1);
     });
     
+    it("should return an array of root-level hashes when data provided as hashes",function(){
+        var parent_story = {
+            ObjectID: 1,
+            Name: 'test parent for not a model'
+        };
+        
+        
+        var child_story = {
+            ObjectID: 2,
+            Name: 'test child',
+            parent: parent_story
+        };
+        
+        var hash = {
+            1: parent_story,
+            2: child_story
+        }
+        
+        var root_items = Rally.technicalservices.util.TreeBuilding.constructRootItemsFromHashes(hash);
+
+        expect(root_items.length).toEqual(1);
+        expect(root_items[0].Name).toEqual('test parent for not a model');
+        expect(root_items[0].children.length).toEqual(1);
+    });
     
     it("should return an array of models when neither has a parent",function(){
         var one_story = Ext.create('mockStory',{

@@ -40,6 +40,39 @@ Ext.define('Rally.technicalservices.util.TreeBuilding', {
         },this);
         return root_array;
     },
+    /*
+     * Given a hash of hashes (key = object id) that all know what
+     * their parent is (based on the "parent" field -- note lowercase)
+     * Return an array of models that are at the root level and
+     * have a "children" field (note lowercase)
+     * with appropriate items in an array 
+     */
+    constructRootItemsFromHashes:function(item_hash) {
+        var root_array = [];
+        Ext.Object.each(item_hash, function(oid,item){
+            if ( !item.children ) { item.children = []; }
+            var direct_parent = item.parent;
+            if (!direct_parent && !Ext.Array.contains(root_array,item)) {
+                root_array.push(item);
+            } else {
+                
+                var parent_oid =  direct_parent.ObjectID;
+                if (!item_hash[parent_oid]) {
+                    this.logger.log("Saved parent missing: ", parent_oid);
+                    if ( !Ext.Array.contains(root_array,item) ) {
+                        root_array.push(item);
+                    }
+                } else {
+                    var parent = item_hash[parent_oid];
+                    if ( !parent.children ) { parent.children = []; }
+                    var kids = parent.children;
+                    kids.push(item);
+                    parent.children = kids;
+                }
+            }
+        },this);
+        return root_array;
+    },
     /**
      * Given an array of models, turn them into hashes
      */
