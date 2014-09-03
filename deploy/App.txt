@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Tue Sep 02 2014 19:59:29 GMT-0700 (PDT) -->
+    <!--  Build Date: Tue Sep 02 2014 20:02:07 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Tue Sep 02 2014 19:59:29 GMT-0700 (PDT)";
-        var CHECKSUM = 25537896226;
+        var APP_BUILD_DATE = "Tue Sep 02 2014 20:02:07 GMT-0700 (PDT)";
+        var CHECKSUM = 25794735274;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -707,7 +707,7 @@ Ext.define('CustomApp', {
     items: [
         {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
         {xtype:'container',itemId:'display_box'},
-        {xtype:'tsinfolink'}
+        {xtype:'tsinfolink',informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
     ],
     field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
 

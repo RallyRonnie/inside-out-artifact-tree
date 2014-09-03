@@ -5,7 +5,7 @@ Ext.define('CustomApp', {
     items: [
         {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
         {xtype:'container',itemId:'display_box'},
-        {xtype:'tsinfolink'}
+        {xtype:'tsinfolink',informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
     ],
     field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
 
