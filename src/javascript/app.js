@@ -26,10 +26,6 @@ Ext.define('CustomApp', {
     },
     _addTree: function() {
         var container = this.down('#display_box');
-        
-        this.logger.log("--");
-        this.logger.log("_addTree",this.additional_columns,this.target_type,this.target_query);
-        this.logger.log("--");
         container.removeAll();
         
         container.add({
@@ -102,6 +98,15 @@ Ext.define('CustomApp', {
         });
         field_picker.on('expand',function(picker){picker.collapse();},this,{single:true});
         
+        var filters = Ext.create('Rally.data.wsapi.Filter',{
+            property:'ElementName',
+            value:'HierarchicalRequirement'
+        });
+        
+        filters = filters.or(Ext.create('Rally.data.wsapi.Filter',{
+            property:'Ordinal',
+            value: 0
+        }));
         container.add({
             xtype:'rallycombobox',
             displayField: 'DisplayName',
@@ -110,13 +115,7 @@ Ext.define('CustomApp', {
             storeConfig: {
                 autoLoad: true,
                 model:'TypeDefinition',
-                filters: [
-                  {property:'Creatable',value:true},
-                  {property:'Restorable',value:true},
-                  {property:'ElementName',operator:'!contains',value:'Test'},
-                  {property:'ElementName',operator:'!contains',value:'Task'}, 
-                  {property:'ElementName',operator:'!contains',value:'Defect'}
-                ]
+                filters: filters
             },
             fieldLabel: 'Target Level:',
             labelWidth: 75,
@@ -127,15 +126,71 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this,
                 change: function(cb,new_value){
+                    this.logger.log("type change ", cb.getRecord().get('TypePath'));
                     if ( this.target_type !== cb.getRecord().get('TypePath')) {
                         this.target_type = cb.getRecord().get('TypePath');
-                        this._addTree();
+                        if ( container.down('#timebox') ) {
+                            container.down('#timebox').destroy();
+                        }
+                        if ( this.target_type == 'HierarchicalRequirement' ) {
+                            this._addIterationBox(container);
+                        } else {
+                            this._addReleaseBox(container);
+                        }
                     }
                 }
             
             }
         });
         
+    },
+    _addIterationBox: function(container) {
+        container.add({
+            xtype:'rallyiterationcombobox',
+            itemId:'timebox',
+            fieldLabel:'Iteration:',
+            labelWidth: 55,
+            width: 250,
+            margin: 10,
+            allowBlank: false,
+            stateful: true,
+            stateId:'rally.techservices.target.iteration',
+            stateEvents:['change'],
+            listeners:{
+                scope: this,
+                change: function(iteration_box){
+                    if ( this.target_query != iteration_box.getQueryFromSelected() ) {
+                        this.target_query = iteration_box.getQueryFromSelected();
+                        this._addTree();
+                    }
+                }
+            }
+        });
+    },
+    _addReleaseBox: function(container) {
+        container.add({
+            xtype:'rallyreleasecombobox',
+            itemId:'timebox',
+            fieldLabel:'Release:',
+            labelWidth: 55,
+            width: 250,
+            margin: 10,
+            allowBlank: false,
+            stateful: true,
+            stateId:'rally.techservices.target.release',
+            stateEvents:['change'],
+            listeners:{
+                scope: this,
+                change: function(release_box){
+                    if ( this.target_query != release_box.getQueryFromSelected() ) {
+                        this.target_query = release_box.getQueryFromSelected();
+                        this._addTree();
+                    }
+                }
+            }
+        });
+    },
+    _addQueryBox: function(container){
         var query_box = container.add({
             xtype:'rallytextfield',
             fieldLabel: 'Target Query:',
@@ -230,7 +285,7 @@ Ext.define('CustomApp', {
         this._fetchPortfolioNames().then({
             scope: this,
             success:function(pi_names){
-                var model_names = Ext.Array.merge(['defect','hierarchicalrequirement'],pi_names);
+                var model_names = Ext.Array.merge(['defect','hierarchicalrequirement','task'],pi_names);
                 console.log("model_names",model_names);
                 Rally.data.ModelFactory.getModels({
                     types: model_names,

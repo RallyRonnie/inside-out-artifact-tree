@@ -150,11 +150,15 @@
             query = this.targetQuery;
         }
         
-        try {
-            var filters = Rally.data.wsapi.Filter.fromQueryString(query);
-            console.log('filters:',filters);
-        } catch(e) {
-            deferred.reject("Filter is poorly constructed");
+        var filters = null;
+        if ( query instanceof Rally.data.wsapi.Filter ) {
+            filters = query;
+        } else {
+            try {
+                var filters = Rally.data.wsapi.Filter.fromQueryString(query);
+            } catch(e) {
+                deferred.reject("Filter is poorly constructed");
+            }
         }
         
         Ext.create('Rally.data.wsapi.Store', {
