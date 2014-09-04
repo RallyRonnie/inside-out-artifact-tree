@@ -28,28 +28,35 @@ Ext.define('CustomApp', {
         var container = this.down('#display_box');
         container.removeAll();
         
-        container.add({
-            xtype:'insideouttree',
-            columns: this._getColumns(),
-            targetType: this.target_type || "UserStory",
-            targetQuery: this.target_query,
-            margin: 10,
-            listeners: {
-                scope:this,
-                afterrender:function(){
-                    this.setLoading("Loading tree...");
-                },
-                afterloadtargets:function() {
-                    this.setLoading('Finding relatives...');
-                },
-                afterload:function(){
-                    this.setLoading('Building tree...');
-                },
-                aftertree:function(){
-                    this.setLoading(false);
+        if ( !this.target_query || this.target_query.toString() == "(Iteration = null)" || this.target_query.toString() == "(Release = null)" ) {
+            this.logger.log(" Waiting for timebox to be selected" );
+            this.setLoading(false);
+        } else {
+            this.logger.log(" Using filter/query: ", this.target_query.toString() );
+            
+            container.add({
+                xtype:'insideouttree',
+                columns: this._getColumns(),
+                targetType: this.target_type || "UserStory",
+                targetQuery: this.target_query,
+                margin: 10,
+                listeners: {
+                    scope:this,
+                    afterrender:function(){
+                        this.setLoading("Loading tree...");
+                    },
+                    afterloadtargets:function() {
+                        this.setLoading('Finding relatives...');
+                    },
+                    afterload:function(){
+                        this.setLoading('Building tree...');
+                    },
+                    aftertree:function(){
+                        this.setLoading(false);
+                    }
                 }
-            }
-        });
+            });
+        }
     },
     _addSelectors: function(container){
         var model_names = Ext.Object.getKeys(this.models);
