@@ -61,7 +61,14 @@ Ext.define('CustomApp', {
     _addSelectors: function(container){
         var model_names = Ext.Object.getKeys(this.models);
         var me = this;
-        
+        /**
+         * So, the 'change' event when you try to use type-ahead in the
+         * field picker and we don't want that to redraw the tree.  But
+         * we want the 'change' event because it is fired when we try to
+         * remember fields that were selected in the past and we definitely 
+         * want that value.
+         */
+        this.react_to_change = true;
         var field_picker = container.add({
             xtype:'rallyfieldpicker',
             autoExpand:true,
@@ -73,7 +80,7 @@ Ext.define('CustomApp', {
             useColumnHeaderLabels: true,
             stateful: true,
             stateId: 'rally.techservices.fields',
-            stateEvents:['blur','select'],
+            stateEvents:['blur','selectionchange'],
             getState: function() {
                 var value_array = [];
                 Ext.Array.each(this.getValue(), function(value){
@@ -85,7 +92,7 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this,
                 blur: function(picker){
-                    console.log('blur');
+                    this.logger.log("BLUR fields", picker.isExpanded);
                     var additional_columns = picker.getValue() || [];
                     this.logger.log("Changing picker from ", this.additional_columns, " to ", additional_columns);
                     if ( this._fieldArraysAreDifferent(this.additional_columns,additional_columns) ) {
@@ -95,11 +102,19 @@ Ext.define('CustomApp', {
                     }
                 },
                 change: function(picker) {
+                    this.logger.log('CHANGE fields');
                     this.additional_columns = picker.getValue() || [];
                     picker.collapse();
-                    if ( this.additional_columns.length > 0 ) {
+                    if ( this.additional_columns.length > 0 && this.react_to_change ) {
+                        this.react_to_change = false;
                         this._addTree();
                     }
+                },
+                selectionchange: function() {
+                    this.logger.log('SELECTION CHANGE fields');
+                },
+                datachanged: function() {
+                    this.logger.log('DATA CHANGED fields');
                 }
             }
         });
