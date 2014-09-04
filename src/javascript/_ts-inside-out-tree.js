@@ -411,6 +411,7 @@
             xtype:'treepanel',
             store: tree_store,
             cls: 'rally-grid',
+            scroll: false,
             rootVisible: false,
             enableColumnMove: true,
             sortableColumns: false,
