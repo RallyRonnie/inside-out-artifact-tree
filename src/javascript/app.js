@@ -175,7 +175,7 @@ Ext.define('CustomApp', {
             width: 250,
             margin: 10,
             allowBlank: false,
-            stateful: true,
+            stateful: false,
             stateId:'rally.techservices.target.iteration',
             stateEvents:['change'],
             listeners:{
@@ -198,7 +198,7 @@ Ext.define('CustomApp', {
             width: 250,
             margin: 10,
             allowBlank: false,
-            stateful: true,
+            stateful: false,
             stateId:'rally.techservices.target.release',
             stateEvents:['change'],
             listeners:{
