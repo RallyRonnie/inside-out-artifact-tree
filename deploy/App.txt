@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Aug 28 2014 17:56:28 GMT-0600 (MDT) -->
+    <!--  Build Date: Thu Sep 04 2014 16:58:11 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Aug 28 2014 17:56:28 GMT-0600 (MDT)";
-        var CHECKSUM = 1050833643;
+        var APP_BUILD_DATE = "Thu Sep 04 2014 16:58:11 GMT-0700 (PDT)";
+        var CHECKSUM = 29555414817;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -15,6 +15,141 @@
     <script type="text/javascript">
         Rally.onReady(function() {
              
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+/*
+ * A series of utilities to help construct trees
+ * with data gotten bottom or middle-up
+ * 
+ */
+ 
+Ext.define('Rally.technicalservices.util.TreeBuilding', {
+    singleton: true,
+    logger: new Rally.technicalservices.Logger(),
+    /*
+     * Given a hash of models (key = object id) that all know what
+     * their parent is (based on the "parent" field -- note lowercase)
+     * Return an array of models that are at the root level and
+     * have a "children" field (note lowercase)
+     * with appropriate items in an array 
+     */
+    constructRootItems:function(item_hash) {
+        var root_array = [];
+        Ext.Object.each(item_hash, function(oid,item){
+            if ( !item.get('children') ) { item.set('children',[]); }
+            var direct_parent = item.get('parent');
+            if (!direct_parent && !Ext.Array.contains(root_array,item)) {
+                root_array.push(item);
+            } else {
+                
+                var parent_oid =  direct_parent.ObjectID || direct_parent.get('ObjectID');
+                if (!item_hash[parent_oid]) {
+                    this.logger.log("Saved parent missing: ", parent_oid);
+                    if ( !Ext.Array.contains(root_array,item) ) {
+                        root_array.push(item);
+                    }
+                } else {
+                    var parent = item_hash[parent_oid];
+                    if ( !parent.get('children') ) { parent.set('children',[]); }
+                    var kids = parent.get('children');
+                    kids.push(item);
+                    parent.set('children',kids);
+                }
+            }
+        },this);
+        return root_array;
+    },
+    /*
+     * Given a hash of hashes (key = object id) that all know what
+     * their parent is (based on the "parent" field -- note lowercase)
+     * Return an array of models that are at the root level and
+     * have a "children" field (note lowercase)
+     * with appropriate items in an array 
+     */
+    constructRootItemsFromHashes:function(item_hash) {
+        var root_array = [];
+        Ext.Object.each(item_hash, function(oid,item){
+            if ( !item.children ) { item.children = []; }
+            var direct_parent = item.parent;
+            if (!direct_parent && !Ext.Array.contains(root_array,item)) {
+                root_array.push(item);
+            } else {
+                
+                var parent_oid =  direct_parent.ObjectID;
+                if (!item_hash[parent_oid]) {
+                    this.logger.log("Saved parent missing: ", parent_oid);
+                    if ( !Ext.Array.contains(root_array,item) ) {
+                        root_array.push(item);
+                    }
+                } else {
+                    var parent = item_hash[parent_oid];
+                    if ( !parent.children ) { parent.children = []; }
+                    var kids = parent.children;
+                    kids.push(item);
+                    parent.children = kids;
+                }
+            }
+        },this);
+        return root_array;
+    },
+    /**
+     * Given an array of models, turn them into hashes
+     */
+    convertModelsToHashes: function(model_array) {
+        var hash_array = [];
+        Ext.Array.each(model_array,function(model){
+            if (this.isModel(model)) {
+                var model_as_hash = model.getData();
+                model_as_hash.expanded = false;
+                model_as_hash.leaf = false;
+                
+                // children & parent are fields that are not a 
+                // part of the model def'n so getData doesn't provide them
+                if ( model.get('children') ) {
+                    model_as_hash.children = this.convertModelsToHashes(model.get('children'));
+                }
+                if ( model.get('parent') ) {
+                    if ( this.isModel(model.get('parent') ) ) {
+                        model_as_hash.parent = model.get('parent').getData();
+                    } else {
+                        model_as_hash.parent = model.get('parent');
+                    }
+                }
+
+                if (!model_as_hash.children || model_as_hash.children.length === 0 ) {
+                    model_as_hash.leaf = true;
+                }
+                
+                hash_array.push(model_as_hash);
+            } else {
+                hash_array.push(model);
+            }
+        },this);
+        return hash_array;
+    },
+    isModel: function(model){
+        return model && ( model instanceof Ext.data.Model );
+    }
+});
 /**
  * A link that pops up a version dialog box
  */
@@ -118,55 +253,432 @@ Ext.define('Rally.technicalservices.InfoLink',{
 });
 
 /*
+ * Most of our trees are generated top-down, which
+ * is most performant; however, sometimes we need to
+ * point to a set of items in the middle of a tree and
+ * (to apply scope or query) and then construct the
+ * tree above and below the found items
+ * 
+ * A good example of this is wanting to see all
+ * the PIs that have a story in a particular iteration
+ * or in a particular team.  The PIs won't be assigned
+ * to an iteration and might not be in the chosen project
+ * scope, so first we have to find the iteration-tied stories
+ * and then go up and down the tree to make context appear.
+ * 
+ * 
  */
-Ext.define('Rally.technicalservices.Logger',{
-    constructor: function(config){
-        Ext.apply(this,config);
-    },
-    log: function(args){
-        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
-        //var output_args = arguments;
-        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
-        //output_args = Ext.Array.push(output_args,arguments);
-        
-        var output_args = [];
-        output_args = Ext.Array.push(output_args,[timestamp]);
-        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
-
-        window.console && console.log.apply(console,output_args);
-    }
-
-});
-
-Ext.define('CustomApp', {
-    extend: 'Rally.app.App',
-    componentCls: 'app',
+ 
+ Ext.define('Rally.technicalservices.InsideOutTree', {
+    extend: 'Ext.container.Container',
+    alias: 'widget.insideouttree',
+    requires: [ 'Rally.technicalservices.Logger', 'Rally.technicalservices.util.TreeBuilding'],
     logger: new Rally.technicalservices.Logger(),
-    items: [
-        {xtype:'container',itemId:'display_box'},
-        {xtype:'tsinfolink'}
-    ],
-    launch: function() {
+    columns: [],
+    /**
+     * @cfg {String} targetQuery
+     * 
+     * WSAPI query to be applied at the target level
+     * 
+     */
+    targetQuery: '(ObjectID > 0)',
+    /**
+     * @cfg {String} targetType
+     * 
+     * Model type path that the query and scope will be applied to (and the tree built from)
+     * 
+     */
+    targetType: 'HierarchicalRequirement',
+    /**
+     * @cfg {Boolean} treeScopeDown
+     * 
+     * True to include searching for children and other descendants
+     */
+    treeScopeDown: true,
+    /**
+     * @cfg {Boolean} treeScopeUp
+     * 
+     * True to include searching for parents and other ancestors
+     */
+    treeScopeUp: true,
+    
+    
+    initComponent: function() {
+        if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
-        var m_name = 'Defect',
-        m_fields = ['Name','State'];
-        
+        this.callParent();
+        this.addEvents(
+            /**
+             * @event aftertree
+             * Fires when the tree has been created and placed on the page.
+             * @param {Rally.technicalservices.InsideOutTree} this
+             * @param {Ext.tree.Panel} tree
+             */
+            'aftertree',
+            /**
+             * @event afterloadtargets
+             * Fires when data has been collected from the initial target query
+             * @param {Rally.technicalservices.InsideOutTree} this
+             */
+            'afterloadtargets',
+            /**
+             * @event afterload
+             * Fires when data has been collected from the parents and children
+             * @param {Rally.technicalservices.InsideOutTree} this
+             */
+            'afterload'
+         );
+    },
+    initItems: function() {
+        this.callParent();
         this._fetchPortfolioNames().then({
             scope: this,
-            success: function(){
-                console.log(this.sModelNames)
+            success: function(pi_model_names){
+                this.logger.log("Portfolio Item Names: ",pi_model_names);
+                this._gatherData().then({
+                    scope: this,
+                    success:function(all_unordered_items){
+                        this.fireEvent('afterload',this);
+
+                        var ordered_items = Rally.technicalservices.util.TreeBuilding.constructRootItems(all_unordered_items);
+                        var ordered_items_as_hashes = Rally.technicalservices.util.TreeBuilding.convertModelsToHashes(ordered_items);
+                        this._makeStoreAndShowGrid(ordered_items_as_hashes);
+                    },
+                    failure:function(error_msg){ 
+                        this.fireEvent('aftertree',this);
+                        this.add({xtype:'container',html:error_msg}); 
+                    }
+                });
             },
             failure: function(error_msg){
-                alert(error_msg);
-                this.logger.log(error_msg);
+                this.fireEvent('aftertree',this);
+                this.add({xtype:'container',html:error_msg}); 
+            }
+        });
+    },
+    _gatherData:function(){
+        var deferred = Ext.create('Deft.Deferred');
+        this._fetchTargetItems().then({
+            scope: this,
+            success:function(target_items){
+                var fetched_items_by_oid = {};
+                Ext.Array.each(target_items,function(item){
+                    fetched_items_by_oid[item.get('ObjectID')] = item;
+                });
+                this.fireEvent('afterloadtargets',this);
+                var promises = [];
+                
+                if ( this.treeScopeDown ) {
+                    promises.push(this._fetchChildItems(target_items,fetched_items_by_oid));
+                }
+                
+                if ( this.treeScopeUp ) {
+                    promises.push(this._fetchParentItems(target_items,fetched_items_by_oid));
+                }
+                
+                Deft.Promise.all(promises).then({
+                    scope: this,
+                    success: function(all_unordered_items){
+                        var flattened_array = Ext.Array.flatten(all_unordered_items);
+                        
+                        var all_unordered_items_hash = {};
+                        if ( flattened_array.length > 0 ) {
+                            all_unordered_items_hash = flattened_array[0];
+                        }
+                        deferred.resolve(all_unordered_items_hash);
+                    },
+                    failure: function(error_msg) { deferred.reject(error_msg); }
+                });
+            },
+            failure:function(error_msg){ deferred.reject(error_msg); }
+        });
+        return deferred;
+    },
+    // The target items are items at the starting level -- query and scope applies
+    _fetchTargetItems: function(){
+        var deferred = Ext.create('Deft.Deferred');
+
+        var query = '( ObjectID > 0 )';
+        
+        if ( this.targetQuery ){
+            query = this.targetQuery;
+        }
+        
+        var filters = null;
+        if ( query instanceof Rally.data.wsapi.Filter ) {
+            filters = query;
+        } else {
+            try {
+                var filters = Rally.data.wsapi.Filter.fromQueryString(query);
+            } catch(e) {
+                deferred.reject("Filter is poorly constructed");
+            }
+        }
+        
+        Ext.create('Rally.data.wsapi.Store', {
+            autoLoad: true,
+            model: this.targetType,
+            fetch: this._getFetchNames(),
+            filters:filters,
+            limit:'Infinity',
+            listeners:  {
+                scope: this,
+                load: function(store, records, success){
+                    if (success) {
+                        deferred.resolve(records);
+                    } else {
+                        deferred.reject('Error loading ' + this.targetType + ' items');
+                    }
+               }
+           }
+        });
+        return deferred.promise;
+    },
+    _fetchChildItems: function(parent_items,fetched_items, deferred){
+        this.logger.log('_fetchChildItems',parent_items.length);
+        if ( !deferred ) {
+            deferred = Ext.create('Deft.Deferred');
+        }
+        
+        var promises = [];
+        Ext.Object.each(parent_items,function(oid,parent){
+            var type = parent.get('_type');
+            var children_fields = this._getChildrenFieldsFor(type);
+
+            if ( children_fields ) {
+                Ext.Array.each(children_fields,function(children_field) {
+                    promises.push(this._fetchCollection(parent,children_field));
+                },this);
+            }
+        },this);
+        
+        if (promises.length > 0) {
+            Deft.Promise.all(promises).then({
+                scope: this,
+                success: function(results) {
+                    var children = Ext.Array.flatten(results);
+                    Ext.Array.each(children,function(child){
+                        if ( !fetched_items[child.get('ObjectID') ] ) {
+                            var parent = this._getParentFrom(child);
+                            fetched_items[child.get('ObjectID')] = child;
+                        }
+                    },this);
+                    this._fetchChildItems(children,fetched_items,deferred);
+                },
+                failure: function(error_msg){ deferred.reject(error_msg); }
+            });
+        } else {
+            this.logger.log("resolving _fetchChildItems");
+            deferred.resolve(fetched_items);
+        }
+        return deferred.promise;
+    },
+    _fetchCollection: function(parent,children_field){
+        var deferred = Ext.create('Deft.Deferred');
+        var fields_to_fetch = this._getFetchNames();
+        
+        if ( parent.get(children_field)){
+            parent.getCollection(children_field,{
+                autoLoad: true,
+                fetch: fields_to_fetch,
+                listeners: {
+                    scope: this,
+                    load: function(store,records,success){
+                        if ( success ) {
+                            deferred.resolve(records);
+                        } else {
+                            deferred.reject("Problem fetching collection ", children_field);
+                        }
+                    }
+                }
+            });
+        } else {
+            deferred.resolve([]);
+        }
+        return deferred.promise;
+    },
+    _fetchParentItems: function(child_items,fetched_items, deferred){
+        if ( !deferred ) {
+            deferred = Ext.create('Deft.Deferred');
+        }
+        this.logger.log('fetched_items:',fetched_items);
+        var fetched_oids = Ext.Object.getKeys(fetched_items);
+        
+        var parents_by_type = {};
+        
+        Ext.Array.each(child_items,function(child){
+            var parent = this._getParentFrom(child);
+            if ( parent ) {
+                var parent_type = parent._type;
+                var parent_oid = parent.ObjectID;
+                if ( !parents_by_type[parent_type] ) { parents_by_type[parent_type] = []; }
+                // don't look for parents more than once
+                if ( !Ext.Array.contains(parents_by_type[parent_type], parent_oid) ){
+                    if ( !Ext.Array.contains(fetched_oids, parent_oid) ) {
+                        parents_by_type[parent_type].push(parent_oid);
+                    }
+                }
+            }
+        },this);
+        
+        var promises = [];
+        Ext.Object.each(parents_by_type,function(type,oids){
+            if (oids.length > 0 ) {
+                promises.push(this._fetchItemsByOIDArray(type,oids));
+            }
+        },this);
+        
+        if (promises.length > 0) {
+            Deft.Promise.all(promises).then({
+                scope: this,
+                success: function(results) {
+                    var parents = Ext.Array.flatten(results);
+                    Ext.Array.each(parents,function(parent){
+                        fetched_items[parent.get('ObjectID')] = parent;
+                    });
+                    this._fetchParentItems(parents,fetched_items,deferred);
+                },
+                failure: function(error_msg){ deferred.reject(error_msg); }
+            });
+        } else {
+            deferred.resolve(fetched_items);
+        }
+        return deferred.promise;
+
+    },
+    _getParentFrom:function(child){
+        var type = child.get('_type');
+        if ( type == "hierarchicalrequirement" ) {
+            var parent = child.get('Parent') || child.get('PortfolioItem');
+            child.set('parent',parent);
+            return parent;
+        }
+        
+        if ( /portfolio/.test(type) ) {
+            var parent = child.get("Parent");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        if ( type == "task" ) {
+            var parent = child.get("WorkProduct");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        if ( type == "defect" ) {
+            var parent = child.get("Requirement");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        return null;
+    },
+    _getParentFieldsFor:function(type) {
+        if ( type == "hierarchicalrequirement" ) {
+            return ['Parent','PortfolioItem'];
+        }
+        
+        if ( /portfolio/.test(type) ) {
+            return ['Parent'];
+        }
+        
+        if ( type == "task" ) {
+            return ['WorkProduct'];
+        }
+        return null;
+    },
+    _getChildrenFieldsFor: function(type) {
+        if ( type == "hierarchicalrequirement" ) {
+            return ['Tasks','Defects','Children'];
+        }
+        if ( /portfolio/.test(type) ) {
+            return ['Children','UserStories'];
+        }
+        
+        if ( type == "task" ) {
+            return [];
+        }
+        return null;
+    },
+    _getChildTypesFor: function(type){
+        if ( type == "hierarchicalrequirement" ) {
+            return ['HierarchicalRequirement','Task'];
+        }
+        if ( /portfolio/.test(type) ) {
+            return ['HierarchicalRequirement','PortfolioItem'];
+        }
+        return null;
+    },
+    _fetchItemsByOIDArray:function(model_name,oids){
+        this.logger.log("_fetchItemsByOIDArray (", oids.length, ")");
+        var deferred = Ext.create('Deft.Deferred');
+        var filters = Ext.create('Rally.data.wsapi.Filter',{property:'ObjectID',value:oids[0]});
+        
+        for ( var i=1;i<oids.length;i++ ) {
+            filters = filters.or(Ext.create('Rally.data.wsapi.Filter',{
+                property:'ObjectID',
+                value:oids[i]
+            }));
+        }
+        
+        Ext.create('Rally.data.wsapi.Store', {
+            autoLoad: true,
+            model: model_name,
+            fetch: this._getFetchNames(),
+            filters: filters,
+            context: {
+                project: null
+            },
+            listeners:  {
+                scope: this,
+                load: function(store, records, success){
+                    if (success) {
+                        deferred.resolve(records);
+                    } else {
+                        deferred.reject('Error loading ' + model_name + ' items');
+                    }
+               }
+           }
+        });
+        return deferred.promise;
+    },
+
+    _makeStoreAndShowGrid: function(ordered_items){
+        this.logger.log('_makeStoreAndShowGrid',ordered_items);
+            
+        var model_config = {
+            extend: 'TSTreeModel',
+            fields: this._getFetchNames()
+        };
+        Ext.define('TSTreeModelWithAdditions', model_config);
+        
+        var tree_store = Ext.create('Ext.data.TreeStore',{
+            model: TSTreeModelWithAdditions,
+            root: {
+                expanded: false,
+                children: ordered_items
             }
         });
         
-    }, 
+        var tree = this.add({
+            xtype:'treepanel',
+            store: tree_store,
+            cls: 'rally-grid',
+            scroll: false,
+            rootVisible: false,
+            enableColumnMove: true,
+            sortableColumns: false,
+            rowLines: true,
+            columns: this.columns
+        });
+
+        this.fireEvent('aftertree',this,tree);
+    },
     _fetchPortfolioNames: function(){
         var deferred = Ext.create('Deft.Deferred');
         
-        var typeStore = Ext.create('Rally.data.wsapi.Store', {
+        Ext.create('Rally.data.wsapi.Store', {
             autoLoad: true,
             model: 'TypeDefinition',
             sorters: [{
@@ -186,8 +698,8 @@ Ext.define('CustomApp', {
                 scope: this,
                 load: function(store, records, success){
                     if (success) {
-                        var sModelNames = _.map(records, function (rec) { return rec.get('TypePath'); });
-                        deferred.resolve(sModelNames);
+                        var pi_model_names = _.map(records, function (rec) { return rec.get('TypePath'); });
+                        deferred.resolve(pi_model_names);
                     } else {
                         deferred.reject('Error loading portofolio item names.');
                     }
@@ -195,6 +707,412 @@ Ext.define('CustomApp', {
            }
         });
         return deferred.promise;
+    },
+    _getFetchNames: function() {
+        var base_field_names = ['ObjectID','_type','Name','Parent','PortfolioItem','Requirement','WorkProduct'];
+        var children_field_names = ['Children','Tasks','UserStories'];
+        
+        var field_names = Ext.Array.merge(base_field_names,children_field_names);
+        
+        Ext.Array.each(this.columns, function(column){
+            field_names = Ext.Array.merge(field_names,[column.dataIndex]);
+            if ( column.otherFields ) {
+                field_names = Ext.Array.merge(field_names,column.otherFields);
+            }
+        });
+        
+        return field_names;
+    }
+});
+
+Ext.define('TSTreeModel',{
+    extend: 'Ext.data.Model',
+    fields: [
+        { name: 'FormattedID', type: 'String' },
+        { name: 'Name', type:'String' },
+        { name: '_ref', type:'String' },
+        { name: '_type', type:'String' }
+    ]
+});
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    items: [
+        {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
+        {xtype:'container',itemId:'display_box',anchor:'90% 85%'},
+        {xtype:'tsinfolink', anchor: '90% 10%',informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
+    ],
+    field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
+
+    launch: function() {
+        this._fetchModels().then({
+            scope: this,
+            success:function(models){
+                this.models = models;
+                this._addSelectors(this.down('#selector_box'));
+                // this._addTree();
+            },
+            failure: function(error_msg){
+                alert(error_msg);
+                this.setLoading(false);
+            }
+        });
+
+    },
+    _addTree: function() {
+        var container = this.down('#display_box');
+        container.removeAll();
+        
+        if ( !this.target_query || this.target_query.toString() == "(Iteration = null)" || this.target_query.toString() == "(Release = null)" ) {
+            this.logger.log(" Waiting for timebox to be selected" );
+            this.setLoading(false);
+        } else {
+            this.logger.log(" Using filter/query: ", this.target_query.toString() );
+            
+            container.add({
+                xtype:'insideouttree',
+                columns: this._getColumns(),
+                targetType: this.target_type || "UserStory",
+                targetQuery: this.target_query,
+                margin: 10,
+                listeners: {
+                    scope:this,
+                    afterrender:function(){
+                        this.setLoading("Loading tree...");
+                    },
+                    afterloadtargets:function() {
+                        this.setLoading('Finding relatives...');
+                    },
+                    afterload:function(){
+                        this.setLoading('Building tree...');
+                    },
+                    aftertree:function(){
+                        this.setLoading(false);
+                    }
+                }
+            });
+        }
+    },
+    _addSelectors: function(container){
+        var model_names = Ext.Object.getKeys(this.models);
+        var me = this;
+        /**
+         * So, the 'change' event when you try to use type-ahead in the
+         * field picker and we don't want that to redraw the tree.  But
+         * we want the 'change' event because it is fired when we try to
+         * remember fields that were selected in the past and we definitely 
+         * want that value.
+         */
+        this.react_to_change = true;
+        var field_picker = container.add({
+            xtype:'rallyfieldpicker',
+            autoExpand:true,
+            margin: 10,
+            alwaysExpanded: false,
+            fieldLabel: 'Show Fields:',
+            labelWidth: 75,
+            modelTypes:model_names,
+            useColumnHeaderLabels: true,
+            stateful: true,
+            stateId: 'rally.techservices.fields',
+            stateEvents:['blur','selectionchange'],
+            getState: function() {
+                var value_array = [];
+                Ext.Array.each(this.getValue(), function(value){
+                    value_array.push(value.get('name'));
+                });
+                
+                return this.addPropertyToState({},'value',value_array);
+            },
+            listeners: {
+                scope: this,
+                blur: function(picker){
+                    this.logger.log("BLUR fields", picker.isExpanded);
+                    var additional_columns = picker.getValue() || [];
+                    this.logger.log("Changing picker from ", this.additional_columns, " to ", additional_columns);
+                    if ( this._fieldArraysAreDifferent(this.additional_columns,additional_columns) ) {
+                        this.additional_columns = additional_columns;
+                        picker.collapse();
+                        this._addTree();
+                    }
+                },
+                change: function(picker) {
+                    this.logger.log('CHANGE fields');
+                    this.additional_columns = picker.getValue() || [];
+                    picker.collapse();
+                    if ( this.additional_columns.length > 0 && this.react_to_change ) {
+                        this.react_to_change = false;
+                        this._addTree();
+                    }
+                },
+                selectionchange: function() {
+                    this.logger.log('SELECTION CHANGE fields');
+                },
+                datachanged: function() {
+                    this.logger.log('DATA CHANGED fields');
+                }
+            }
+        });
+        field_picker.on('expand',function(picker){picker.collapse();},this,{single:true});
+        
+        var filters = Ext.create('Rally.data.wsapi.Filter',{
+            property:'ElementName',
+            value:'HierarchicalRequirement'
+        });
+        
+        filters = filters.or(Ext.create('Rally.data.wsapi.Filter',{
+            property:'Ordinal',
+            value: 0
+        }));
+        container.add({
+            xtype:'rallycombobox',
+            displayField: 'DisplayName',
+            margin: 10,
+            autoExpand: true,
+            storeConfig: {
+                autoLoad: true,
+                model:'TypeDefinition',
+                filters: filters
+            },
+            fieldLabel: 'Target Level:',
+            labelWidth: 75,
+            valueField:'TypePath',
+            stateful: true,
+            stateId: 'rally.techservices.target.type.path',
+            stateEvents:['select','change'],
+            listeners: {
+                scope: this,
+                change: function(cb,new_value){
+                    this.logger.log("type change ", cb.getRecord().get('TypePath'));
+                    if ( this.target_type !== cb.getRecord().get('TypePath')) {
+                        this.target_type = cb.getRecord().get('TypePath');
+                        if ( container.down('#timebox') ) {
+                            container.down('#timebox').destroy();
+                        }
+                        if ( this.target_type == 'HierarchicalRequirement' ) {
+                            this._addIterationBox(container);
+                        } else {
+                            this._addReleaseBox(container);
+                        }
+                    }
+                }
+            
+            }
+        });
+        
+    },
+    _addIterationBox: function(container) {
+        container.add({
+            xtype:'rallyiterationcombobox',
+            itemId:'timebox',
+            fieldLabel:'Iteration:',
+            labelWidth: 55,
+            width: 250,
+            margin: 10,
+            allowBlank: false,
+            stateful: false,
+            stateId:'rally.techservices.target.iteration',
+            stateEvents:['change'],
+            listeners:{
+                scope: this,
+                change: function(iteration_box){
+                    if ( this.target_query != iteration_box.getQueryFromSelected() ) {
+                        this.target_query = iteration_box.getQueryFromSelected();
+                        this._addTree();
+                    }
+                }
+            }
+        });
+    },
+    _addReleaseBox: function(container) {
+        container.add({
+            xtype:'rallyreleasecombobox',
+            itemId:'timebox',
+            fieldLabel:'Release:',
+            labelWidth: 55,
+            width: 250,
+            margin: 10,
+            allowBlank: false,
+            stateful: false,
+            stateId:'rally.techservices.target.release',
+            stateEvents:['change'],
+            listeners:{
+                scope: this,
+                change: function(release_box){
+                    if ( this.target_query != release_box.getQueryFromSelected() ) {
+                        this.target_query = release_box.getQueryFromSelected();
+                        this._addTree();
+                    }
+                }
+            }
+        });
+    },
+    _addQueryBox: function(container){
+        var query_box = container.add({
+            xtype:'rallytextfield',
+            fieldLabel: 'Target Query:',
+            labelWidth: 85,
+            margin: 10,
+            width: 400,
+            stateful: true,
+            stateId: 'rally.techservices.target.query',
+            stateEvents:['blur'],
+            listeners: {
+                scope: this,
+                blur: function(textbox){
+                    console.log('blur');
+                    if ( this.target_query != textbox.getValue() ) {
+                        this.target_query = textbox.getValue();
+                        this._addTree();
+                    }
+                },
+                staterestore: function(textbox,state){
+                    console.log('query restore');
+                    if ( this.target_query != state.value ) {
+                        this.target_query = state.value;
+                        this._addTree();
+                    };
+                }
+            }
+        });
+
+    },
+    _getColumns: function() {
+        var me = this;
+        var name_renderer = function(value,meta_data,record) {
+            return me._nameRenderer(value,meta_data,record);
+        };
+        
+        var magic_renderer = function(field,value,meta_data,record){
+            return me._magicRenderer(field,value,meta_data,record);
+        }
+        
+        var columns = [
+            {
+                xtype: 'treecolumn',
+                text: 'Item',
+                dataIndex: 'Name',
+                itemId: 'tree_column',
+                renderer: name_renderer,
+                width: 400,
+                menuDisabled: true,
+                otherFields: ['FormattedID','ObjectID']
+            }
+        ];
+        
+        if ( this.additional_columns ) {
+            this.logger.log("Additional fields: ", this.additional_columns);
+            Ext.Array.each(this.additional_columns, function(field) {
+                columns.push({
+                    text:field.get('displayName').replace(/\(.*\)/,""),
+                    dataIndex:field.get('name'),
+                    menuDisabled: true,
+                    renderer:function(value,meta_data,record){
+                        return me._magicRenderer(field,value,meta_data,record) || "";
+                    }
+                });
+            });
+        }
+        return columns;
+    },
+    _magicRenderer: function(field,value,meta_data,record){
+        var field_name = field.get('name');
+        var record_type = record.get('_type');
+        var model = this.models[record_type];
+        // will fail fi field is not on the record
+        // (e.g., we pick accepted date, by are also showing features
+        try {
+            var template = Rally.ui.renderer.RendererFactory.getRenderTemplate(model.getField(field_name)) || "";
+            return template.apply(record.data);
+        } catch(e) {
+            return ".";
+        }
+    },
+    _nameRenderer: function(value,meta_data,record) {
+        var display_value = record.get('Name');
+        if ( record.get('FormattedID') ) {
+            var link_text = record.get('FormattedID') + ": " + value;
+            var url = Rally.nav.Manager.getDetailUrl( record );
+            display_value = "<a target='_blank' href='" + url + "'>" + link_text + "</a>";
+        }
+        return display_value;
+    },
+    _fetchModels: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        this._fetchPortfolioNames().then({
+            scope: this,
+            success:function(pi_names){
+                var model_names = Ext.Array.merge(['defect','hierarchicalrequirement','task'],pi_names);
+                console.log("model_names",model_names);
+                Rally.data.ModelFactory.getModels({
+                    types: model_names,
+                    success: function(model_hash) {
+                        deferred.resolve(model_hash);
+                    },
+                    failure: deferred.reject
+                });
+            },
+            failure:deferred.reject
+        });
+        return deferred.promise;
+    },
+    _fetchPortfolioNames: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        
+        Ext.create('Rally.data.wsapi.Store', {
+            autoLoad: true,
+            model: 'TypeDefinition',
+            sorters: [{
+              property: 'Ordinal',
+              direction: 'ASC'
+            }],
+            filters: [{
+              property: 'Parent.Name',
+              operator: '=',
+              value: 'Portfolio Item'
+            }, {
+              property: 'Creatable',
+              operator: '=',
+              value: true
+            }],
+            listeners:  {
+                scope: this,
+                load: function(store, records, success){
+                    if (success) {
+                        var pi_model_names = _.map(records, function (rec) { return Ext.util.Format.lowercase(rec.get('TypePath')); });
+                        deferred.resolve(pi_model_names);
+                    } else {
+                        deferred.reject('Error loading portofolio item names.');
+                    }
+               }
+           }
+        });
+        return deferred.promise;
+    },
+    _fieldArraysAreDifferent:function(fields_1,fields_2) {
+        var changed = false;
+        Ext.Array.each(fields_1, function(field_1){
+            var in_fields_2 = false;
+            Ext.Array.each(fields_2,function(field_2){
+                if ( field_2.get('name') == field_1.get('name') ) {
+                    in_fields_2 = true;
+                }
+            });
+            if ( ! in_fields_2 ) { changed=true; }
+        });
+        
+        Ext.Array.each(fields_2, function(field_2){
+            var in_fields_1 = false;
+            Ext.Array.each(fields_1,function(field_1){
+                if ( field_1.get('name') == field_2.get('name')) {
+                    in_fields_1 = true;
+                }
+            });
+            if ( ! in_fields_1 ) { changed=true; }
+        });
+        
+        return changed;
     }
 
 });
@@ -223,6 +1141,11 @@ Ext.define('CustomApp', {
     margin-top: 25px;
     margin-right: 5px;
     cursor: pointer;
+}
+
+.rally-grid .icon-builder-template .icon-builder-span {
+    left: -8px; 
+    top: 0px; 
 }
     </style>
 
