@@ -2,10 +2,11 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
+    autoScroll: false,
     items: [
         {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
-        {xtype:'container',itemId:'display_box',anchor:'90% 85%'},
-        {xtype:'tsinfolink', anchor: '90% 10%',informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink', height: 10, informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
     ],
     field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
 
@@ -24,6 +25,13 @@ Ext.define('CustomApp', {
         });
 
     },
+    _getAvailableTreeHeight: function() {
+        var body_height = this.getHeight() || Ext.getBody().getHeight();
+        this.logger.log("Body height: ", body_height);
+        var available_height = body_height - 100;
+        this.logger.log("Returning height: ", available_height);
+        return available_height;
+    },
     _addTree: function() {
         var container = this.down('#display_box');
         container.removeAll();
@@ -36,10 +44,12 @@ Ext.define('CustomApp', {
             
             container.add({
                 xtype:'insideouttree',
+                cls: 'rally-grid',
                 columns: this._getColumns(),
                 targetType: this.target_type || "UserStory",
                 targetQuery: this.target_query,
-                margin: 10,
+                height: this._getAvailableTreeHeight(),
+                maxHeight: this._getAvailableTreeHeight(),
                 listeners: {
                     scope:this,
                     afterrender:function(){
