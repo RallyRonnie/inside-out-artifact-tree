@@ -47,8 +47,7 @@
      * True to include searching for parents and other ancestors
      */
     treeScopeUp: true,
-    
-    
+
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -411,11 +410,11 @@
             xtype:'treepanel',
             store: tree_store,
             cls: 'rally-grid',
-            scroll: false,
             rootVisible: false,
             enableColumnMove: true,
             sortableColumns: false,
             rowLines: true,
+            height: this.height,
             columns: this.columns
         });
 

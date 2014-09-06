@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Sep 04 2014 16:58:11 GMT-0700 (PDT) -->
+    <!--  Build Date: Sat Sep 06 2014 10:36:30 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Sep 04 2014 16:58:11 GMT-0700 (PDT)";
-        var CHECKSUM = 29555414817;
+        var APP_BUILD_DATE = "Sat Sep 06 2014 10:36:30 GMT-0700 (PDT)";
+        var CHECKSUM = 30371791138;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -301,8 +301,7 @@ Ext.define('Rally.technicalservices.InfoLink',{
      * True to include searching for parents and other ancestors
      */
     treeScopeUp: true,
-    
-    
+
     initComponent: function() {
         if ( this.columns.length == 0 ) { throw("Missing required setting: columns"); }
         
@@ -665,11 +664,11 @@ Ext.define('Rally.technicalservices.InfoLink',{
             xtype:'treepanel',
             store: tree_store,
             cls: 'rally-grid',
-            scroll: false,
             rootVisible: false,
             enableColumnMove: true,
             sortableColumns: false,
             rowLines: true,
+            height: this.height,
             columns: this.columns
         });
 
@@ -738,10 +737,11 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
+    autoScroll: false,
     items: [
         {xtype:'container',itemId:'selector_box', layout: {type:'hbox'},  margin: 5, height: 50},
-        {xtype:'container',itemId:'display_box',anchor:'90% 85%'},
-        {xtype:'tsinfolink', anchor: '90% 10%',informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink', height: 10, informationHtml:'The target level is the record type to which the project scoping<br/>and release or iteration will be applied'}
     ],
     field_names: ['ObjectID','FormattedID','Name','Parent','PortfolioItem'],
 
@@ -760,6 +760,13 @@ Ext.define('CustomApp', {
         });
 
     },
+    _getAvailableTreeHeight: function() {
+        var body_height = this.getHeight() || Ext.getBody().getHeight();
+        this.logger.log("Body height: ", body_height);
+        var available_height = body_height - 100;
+        this.logger.log("Returning height: ", available_height);
+        return available_height;
+    },
     _addTree: function() {
         var container = this.down('#display_box');
         container.removeAll();
@@ -772,10 +779,12 @@ Ext.define('CustomApp', {
             
             container.add({
                 xtype:'insideouttree',
+                cls: 'rally-grid',
                 columns: this._getColumns(),
                 targetType: this.target_type || "UserStory",
                 targetQuery: this.target_query,
-                margin: 10,
+                height: this._getAvailableTreeHeight(),
+                maxHeight: this._getAvailableTreeHeight(),
                 listeners: {
                     scope:this,
                     afterrender:function(){
