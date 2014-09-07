@@ -21,6 +21,7 @@
     requires: [ 'Rally.technicalservices.Logger', 'Rally.technicalservices.util.TreeBuilding'],
     logger: new Rally.technicalservices.Logger(),
     columns: [],
+    cls: 'rally-grid',
     /**
      * @cfg {String} targetQuery
      * 
@@ -220,6 +221,8 @@
     },
     _fetchCollection: function(parent,children_field){
         var deferred = Ext.create('Deft.Deferred');
+        this.logger.log("_fetchCollection",children_field);
+        
         var fields_to_fetch = this._getFetchNames();
         
         if ( parent.get(children_field)){
@@ -317,6 +320,18 @@
             return parent;
         }
         
+        if ( type == "testfolder" ) {
+            var parent = child.get("Parent");
+            child.set('parent', parent);
+            return parent;
+        }
+        
+        if ( type == "testcase" ) {
+            var parent = child.get('TestFolder');
+            child.set('parent',parent);
+            return parent;
+        }
+        
         return null;
     },
     _getParentFieldsFor:function(type) {
@@ -331,6 +346,14 @@
         if ( type == "task" ) {
             return ['WorkProduct'];
         }
+        
+        if ( type == "testfolder" ) {
+            return ['Parent'];
+        }
+        
+        if ( type == "testcase" ) {
+            return ['TestFolder'];
+        }
         return null;
     },
     _getChildrenFieldsFor: function(type) {
@@ -344,6 +367,10 @@
         if ( type == "task" ) {
             return [];
         }
+        
+        if ( type == "testfolder" ) {
+            return ['Children','TestCases']
+        }
         return null;
     },
     _getChildTypesFor: function(type){
@@ -352,6 +379,9 @@
         }
         if ( /portfolio/.test(type) ) {
             return ['HierarchicalRequirement','PortfolioItem'];
+        }
+        if ( type == "testfolder" ) {
+            return ['TestFolder','TestCase']
         }
         return null;
     },
@@ -454,10 +484,12 @@
         return deferred.promise;
     },
     _getFetchNames: function() {
-        var base_field_names = ['ObjectID','_type','Name','Parent','PortfolioItem','Requirement','WorkProduct'];
-        var children_field_names = ['Children','Tasks','UserStories'];
+        var base_field_names = ['ObjectID','_type','Name'];
+        var parent_field_names = ['Parent','PortfolioItem','Requirement','WorkProduct','TestFolder'];
+        var children_field_names = ['Children','Tasks','UserStories','TestCases'];
         
         var field_names = Ext.Array.merge(base_field_names,children_field_names);
+        field_names = Ext.Array.merge(field_names,parent_field_names);
         
         Ext.Array.each(this.columns, function(column){
             field_names = Ext.Array.merge(field_names,[column.dataIndex]);

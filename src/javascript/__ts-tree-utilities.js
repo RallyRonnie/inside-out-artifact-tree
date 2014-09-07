@@ -80,7 +80,7 @@ Ext.define('Rally.technicalservices.util.TreeBuilding', {
         var hash_array = [];
         Ext.Array.each(model_array,function(model){
             if (this.isModel(model)) {
-                var model_as_hash = model.getData();
+                var model_as_hash = model.data;
                 model_as_hash.expanded = false;
                 model_as_hash.leaf = false;
                 
@@ -110,5 +110,50 @@ Ext.define('Rally.technicalservices.util.TreeBuilding', {
     },
     isModel: function(model){
         return model && ( model instanceof Ext.data.Model );
+    },
+    /**
+     * Given an array of top-level models (will have field called 'children' holding more models),
+     * roll up the value in the bottom of the tree's field_name
+     * 
+     * Config object has these values:
+     * 
+     * @param [{Ext.data.model}] root_items
+     * @param {String} field_name
+     * @param {Boolean} leaves_only (true to ignore parent value, false to add children to parent's existing value)
+     * @param {String|fn} calculator [ 'count' ]
+     */
+    rollup: function(config){
+        Ext.Array.each(config.root_items,function(root_item){
+            this._setValueFromChildren(root_item,config.field_name,config.calculator,config.leaves_only);
+        },this);
+        return config.root_items;
+    },
+    _setValueFromChildren:function(parent_item,field_name,calculator,leaves_only){
+        var parent_value = parent_item.get(field_name) || 0;
+        if ( calculator ) {
+            parent_value = this._calculate(parent_item,calculator);
+        }
+        var children = parent_item.get('children') || [];
+        
+        if ( leaves_only && children.length > 0 ) { parent_value = 0; }
+
+        Ext.Array.each(children,function(child_item) {
+            this._setValueFromChildren(child_item,field_name,calculator,leaves_only);
+            var child_value = child_item.get(field_name) || 0;
+            if ( calculator && child_value == 0 ) {
+                child_value = this._calculate(child_item,calculator);
+            }
+            parent_value += child_value;
+        },this);
+        parent_item.set(field_name,parent_value);
+        return;
+    },
+    _calculate:function(item,calculator){
+        'use strict';
+        if ( calculator == 'count' ) {
+            return 1;
+        }
+        return calculator(item);
+        
     }
 });

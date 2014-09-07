@@ -20,6 +20,15 @@ Ext.define('mockStory',{
     ]
 });
 
+Ext.define('mockPI',{
+    extend: 'Ext.data.Model',
+    fields: [
+        {name:'ObjectID', type: 'int'},
+        {name:'Name',type:'string'},
+        {name:'id',type:'int',convert:useObjectID}
+    ]
+});
+
 Ext.define('mockIteration',{
     extend: 'Ext.data.Model',
     fields: [
