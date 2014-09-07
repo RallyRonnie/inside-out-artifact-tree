@@ -2,6 +2,21 @@
 
 ## Development Notes
 
+In addition to the code to create a configurable tree, this repo holds the
+tests and code for the tree utilities and the tree grid itself.  The utility
+does some neat things:
+
+ * constructRootItems - given a hash of models that are related by the 'parent' field, 
+       return an array of root items that have children in an array in the 'children' 
+       field (and they have children in a 'children' field and so on and so on).
+ * convertModelsToHashes - very useful for taking the results of constructRootItems and
+       getting ready to use them to make a tree store
+ * rollup - give this a config object to take the root items (while still models) and 
+       roll up either the values in an existing number field, or count items, or apply
+       a calculator and roll up.  
+       
+**Look at the tests!**
+       
 ### First Load
 
 If you've just downloaded this from github and you want to do development, 
