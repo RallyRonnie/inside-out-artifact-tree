@@ -305,6 +305,30 @@ Ext.define('CustomApp', {
                 width: 400,
                 menuDisabled: true,
                 otherFields: ['FormattedID','ObjectID']
+            },
+            {
+                text:'Project',
+                dataIndex:'Project',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Project'},value,meta_data,record) || "";
+                }
+            },
+            {
+                text:'Release',
+                dataIndex:'Release',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Release'},value,meta_data,record) || "";
+                }
+            },
+            {
+                text:'Iteration',
+                dataIndex:'Iteration',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Iteration'},value,meta_data,record) || "";
+                }
             }
         ];
         
@@ -324,7 +348,7 @@ Ext.define('CustomApp', {
         return columns;
     },
     _magicRenderer: function(field,value,meta_data,record){
-        var field_name = field.get('name');
+        var field_name = field.name || field.get('name');
         var record_type = record.get('_type');
         var model = this.models[record_type];
         // will fail fi field is not on the record

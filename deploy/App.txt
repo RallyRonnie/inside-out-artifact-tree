@@ -3,11 +3,11 @@
 <head>
     <title>inside-out-artifact-tree</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri Sep 12 2014 09:50:46 GMT-0700 (PDT) -->
+    <!--  Build Date: Fri Sep 12 2014 10:00:19 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Sep 12 2014 09:50:46 GMT-0700 (PDT)";
-        var CHECKSUM = 48229757535;
+        var APP_BUILD_DATE = "Fri Sep 12 2014 10:00:19 GMT-0700 (PDT)";
+        var CHECKSUM = 49827820708;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -1290,6 +1290,30 @@ Ext.define('CustomApp', {
                 width: 400,
                 menuDisabled: true,
                 otherFields: ['FormattedID','ObjectID']
+            },
+            {
+                text:'Project',
+                dataIndex:'Project',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Project'},value,meta_data,record) || "";
+                }
+            },
+            {
+                text:'Release',
+                dataIndex:'Release',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Release'},value,meta_data,record) || "";
+                }
+            },
+            {
+                text:'Iteration',
+                dataIndex:'Iteration',
+                menuDisabled: true,
+                renderer:function(value,meta_data,record){
+                    return me._magicRenderer({name:'Iteration'},value,meta_data,record) || "";
+                }
             }
         ];
         
@@ -1309,7 +1333,7 @@ Ext.define('CustomApp', {
         return columns;
     },
     _magicRenderer: function(field,value,meta_data,record){
-        var field_name = field.get('name');
+        var field_name = field.name || field.get('name');
         var record_type = record.get('_type');
         var model = this.models[record_type];
         // will fail fi field is not on the record
