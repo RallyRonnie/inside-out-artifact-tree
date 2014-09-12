@@ -177,27 +177,60 @@ Ext.define('CustomApp', {
         
     },
     _addIterationBox: function(container) {
+
+        var today = Rally.util.DateTime.toIsoString(new Date());
+        
+        var store = Ext.create('Rally.data.custom.Store',{
+            data: [
+                { _refObjectName: 'Current', _ref: 'Current', query: '( ( Iteration.StartDate <= ' + today + ') AND ( Iteration.EndDate >= ' + today + ') )'},
+                { _refObjectName: 'Unscheduled', _ref: 'Unscheduled', query: '( Iteration = "" )'}
+            ]
+        });
         container.add({
-            xtype:'rallyiterationcombobox',
+            xtype:'rallycombobox',
             itemId:'timebox',
             fieldLabel:'Iteration:',
             labelWidth: 55,
+            store: store,
             width: 250,
             margin: 10,
             allowBlank: false,
             stateful: false,
-            stateId:'rally.techservices.target.iteration',
+            stateId:'rally.techservices.target.current_not',
             stateEvents:['change'],
             listeners:{
                 scope: this,
                 change: function(iteration_box){
-                    if ( this.target_query != iteration_box.getQueryFromSelected() ) {
-                        this.target_query = iteration_box.getQueryFromSelected();
+                    console.log(iteration_box.getValue(), iteration_box.getRecord().get('query'));
+                    var new_query = iteration_box.getRecord().get('query');
+                    if ( this.target_query != new_query ) {
+                        this.target_query = new_query;
                         this._addTree();
                     }
                 }
             }
         });
+//        container.add({
+//            xtype:'rallyiterationcombobox',
+//            itemId:'timebox',
+//            fieldLabel:'Iteration:',
+//            labelWidth: 55,
+//            width: 250,
+//            margin: 10,
+//            allowBlank: false,
+//            stateful: false,
+//            stateId:'rally.techservices.target.iteration',
+//            stateEvents:['change'],
+//            listeners:{
+//                scope: this,
+//                change: function(iteration_box){
+//                    if ( this.target_query != iteration_box.getQueryFromSelected() ) {
+//                        this.target_query = iteration_box.getQueryFromSelected();
+//                        this._addTree();
+//                    }
+//                }
+//            }
+//        });
     },
     _addReleaseBox: function(container) {
         container.add({
